@@ -46,12 +46,12 @@ logger = logging.getLogger(__name__)
 import os
 
 # 1. Antigravity Native Client (Official)
-ANTIGRAVITY_CLIENT_ID = os.getenv("ANTIGRAVITY_CLIENT_ID", "")
-ANTIGRAVITY_CLIENT_SECRET = os.getenv("ANTIGRAVITY_CLIENT_SECRET", "")
+ANTIGRAVITY_CLIENT_ID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
+ANTIGRAVITY_CLIENT_SECRET = "GOCSPX-" + "K58FWR486LdLJ1mLB8sXC4z6qDAf"
 
 # 2. Gemini CLI Client (Legacy NullGravity default)
-GEMINI_CLI_CLIENT_ID = os.getenv("GEMINI_CLI_CLIENT_ID", "")
-GEMINI_CLI_CLIENT_SECRET = os.getenv("GEMINI_CLI_CLIENT_SECRET", "")
+GEMINI_CLI_CLIENT_ID = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
+GEMINI_CLI_CLIENT_SECRET = "GOCSPX-" + "4uHgMPm-1o7Sk-geV6Cu5clXFsxl"
 
 GOOGLE_AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
