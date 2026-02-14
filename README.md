@@ -9,8 +9,6 @@
 ![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)
 ![Python](https://img.shields.io/badge/Python-3.12-yellow?style=flat-square&logo=python)
 
-**Defy Expectations.**
-
 NullGravity is a comprehensive system for managing AI service accounts and proxy configurations. It provides a unified dashboard to monitor account health, handle Google OAuth authentications, and seamlessly integrate with Antigravity.
 
 [English](./README.md) | [简体中文](./README_zh.md)
