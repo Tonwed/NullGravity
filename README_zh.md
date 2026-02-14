@@ -21,7 +21,7 @@ NullGravity 是一个综合性的 AI 账号管理与协议代理系统。它提�
 
 ## 🚀 概览
 
-## 🚀 概览
+
 
 NullGravity 结合了 Web 和桌面技术，提供统一的使用体验。
 
@@ -32,8 +32,8 @@ NullGravity 结合了 Web 和桌面技术，提供统一的使用体验。
 - **实时监控**: 可视化仪表盘，实时展示请求日志、调用成功率及账号配额状态。
 
 <div align="center">
-  <img src="image_1" alt="软件截图 1" width="45%" />
-  <img src="image_2" alt="软件截图 2" width="45%" />
+  <img src="img/image_1.png" alt="软件截图 1" width="45%" />
+  <img src="img/image_2.png" alt="软件截图 2" width="45%" />
 </div>
 
 ---

@@ -21,7 +21,7 @@ NullGravity is a comprehensive system for managing AI service accounts and proxy
 
 ## 🚀 Overview
 
-## 🚀 Overview
+
 
 NullGravity combines web and desktop technologies to provide a unified experience.
 
@@ -32,8 +32,8 @@ NullGravity combines web and desktop technologies to provide a unified experienc
 - **Real-time Monitoring**: Visual dashboard displaying request logs, success rates, and account quotas.
 
 <div align="center">
-  <img src="image_1" alt="Software Screenshot 1" width="45%" />
-  <img src="image_2" alt="Software Screenshot 2" width="45%" />
+  <img src="img/image_1.png" alt="Software Screenshot 1" width="45%" />
+  <img src="img/image_2.png" alt="Software Screenshot 2" width="45%" />
 </div>
 ---
 
