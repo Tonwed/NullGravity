@@ -109,7 +109,6 @@ export default function SettingsPage() {
 
     // Auto-refresh settings
     const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(false);
-    const [autoRefreshGeminiEnabled, setAutoRefreshGeminiEnabled] = useState(true);
     const [autoRefreshAntigravityEnabled, setAutoRefreshAntigravityEnabled] = useState(true);
     const [autoRefreshInterval, setAutoRefreshInterval] = useState("15");
 
@@ -165,7 +164,6 @@ export default function SettingsPage() {
                 setProxyUrl(data.settings.proxy_url || "");
                 setProxyEnabled(data.settings.proxy_enabled === "true");
                 setAutoRefreshEnabled(data.settings.auto_refresh_enabled === "true");
-                setAutoRefreshGeminiEnabled(data.settings.auto_refresh_gemini_enabled !== "false");
                 setAutoRefreshAntigravityEnabled(data.settings.auto_refresh_antigravity_enabled !== "false");
                 setAutoRefreshInterval(data.settings.auto_refresh_interval || "15");
                 setAntigravityPath(data.settings.antigravity_path || "");
@@ -300,11 +298,6 @@ export default function SettingsPage() {
     const handleToggleAutoRefresh = (checked: boolean) => {
         setAutoRefreshEnabled(checked);
         handleSaveAutoRefresh("auto_refresh_enabled", String(checked));
-    };
-
-    const handleToggleAutoRefreshGemini = (checked: boolean) => {
-        setAutoRefreshGeminiEnabled(checked);
-        handleSaveAutoRefresh("auto_refresh_gemini_enabled", String(checked));
     };
 
     const handleToggleAutoRefreshAntigravity = (checked: boolean) => {
@@ -527,11 +520,11 @@ export default function SettingsPage() {
 
             {/* Right Content Panel — main white/dark background */}
             <div className="flex-1 min-w-0 overflow-y-auto bg-muted/30 dark:bg-muted/20">
-                <div className="px-8 py-6 max-w-3xl mx-auto">
+                <div className="px-8 py-6 w-full max-w-5xl mx-auto">
                     <h2 className="text-base font-semibold text-center">{t(activeInfo.labelKey)}</h2>
                 </div>
 
-                <div className="px-8 pb-8 space-y-6 max-w-3xl mx-auto">
+                <div className="px-8 pb-8 space-y-6 w-full max-w-5xl mx-auto flex-1 flex flex-col">
                     {/* Appearance */}
                     {activeSection === "appearance" && (
                         <>
@@ -734,16 +727,6 @@ export default function SettingsPage() {
                                         <Switch
                                             checked={autoRefreshEnabled}
                                             onCheckedChange={handleToggleAutoRefresh}
-                                            size="sm"
-                                        />
-                                    </div>
-
-                                    {/* Gemini Toggle */}
-                                    <div className={cn("flex items-center justify-between px-4 py-3.5 transition-opacity", !autoRefreshEnabled && "opacity-50 pointer-events-none")}>
-                                        <Label className="text-[13px] font-medium">{t("autoRefreshGemini")}</Label>
-                                        <Switch
-                                            checked={autoRefreshGeminiEnabled}
-                                            onCheckedChange={handleToggleAutoRefreshGemini}
                                             size="sm"
                                         />
                                     </div>

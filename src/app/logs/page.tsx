@@ -48,7 +48,7 @@ export default function LogsPage() {
     };
 
     return (
-        <div className="mx-auto max-w-5xl space-y-5 animate-in fade-in duration-500">
+        <div className="mx-auto w-full max-w-7xl flex-1 flex flex-col space-y-5 animate-in fade-in duration-500">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>

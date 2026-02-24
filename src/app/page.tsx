@@ -175,7 +175,23 @@ function QuotaProgressBar({ fraction, label, subLabel }: { fraction: number, lab
 function AccountItem({ account, t }: { account: AccountSummary, t: any }) {
   const models = [...(account.gemini_models || []), ...(account.antigravity_models || [])];
   const uniqueModels = Array.from(new Map(models.map(m => [m.name, m])).values());
-  const displayModels = uniqueModels.slice(0, 3);
+
+  const targetModels = [
+    { label: "Claude", key: "claude-opus-4-6-thinking" },
+    { label: "Gemini", key: "gemini-3.1-pro-high" },
+    { label: "Gemini Image", key: "gemini-3-pro-image" },
+  ];
+
+  let displayModels: (ModelQuota & { displayLabel?: string })[] = targetModels
+    .map(tm => {
+      const found = uniqueModels.find(m => m.name.includes(tm.key));
+      return found ? { ...found, displayLabel: tm.label } : null;
+    })
+    .filter(Boolean) as (ModelQuota & { displayLabel?: string })[];
+
+  if (displayModels.length === 0) {
+    displayModels = uniqueModels.slice(0, 3);
+  }
 
   const getResetText = (isoTime?: string) => {
     if (!isoTime) return "";
@@ -227,8 +243,6 @@ function AccountItem({ account, t }: { account: AccountSummary, t: any }) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {account.has_gemini && <Badge variant="outline" className="text-[9px] h-4 px-1 text-muted-foreground opacity-70">CLI</Badge>}
-          {account.has_antigravity && <Badge variant="outline" className="text-[9px] h-4 px-1 text-muted-foreground opacity-70">AG</Badge>}
         </div>
       </div>
 
@@ -239,7 +253,7 @@ function AccountItem({ account, t }: { account: AccountSummary, t: any }) {
             <QuotaProgressBar
               key={`${model.name}-${idx}`}
               fraction={model.remainingFraction ?? 0}
-              label={model.name.replace("models/", "")}
+              label={model.displayLabel || model.name.replace("models/", "")}
               subLabel={model.resetTime ? getResetText(model.resetTime) : undefined}
             />
           ))
@@ -321,7 +335,7 @@ export default function DashboardPage() {
   const s = stats!;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 animate-in fade-in duration-500">
+    <div className="mx-auto w-full max-w-7xl flex-1 flex flex-col space-y-6 animate-in fade-in duration-500">
 
       {/* Header - Matches Accounts Page Style */}
       <div className="flex items-center justify-between">

@@ -159,18 +159,12 @@ export function AccountDetailsDialog({
                             </h4>
 
                             {(() => {
-                                // Extract Credentials
-                                const geminiCred = account.credentials?.find((c: any) => c.client_type === 'gemini_cli');
+                                // Extract Antigravity credential
                                 const antigravityCred = account.credentials?.find((c: any) => c.client_type === 'antigravity');
-
-                                // Fallback logic for legacy accounts that might not have credentials array populated yet
-                                const geminiModels = geminiCred?.models || (account.quota_buckets ? account.quota_buckets : []);
                                 const antigravityModels = antigravityCred?.models || [];
-
-                                const hasGemini = geminiModels.length > 0;
                                 const hasAntigravity = antigravityModels.length > 0;
 
-                                if (!hasGemini && !hasAntigravity) {
+                                if (!hasAntigravity) {
                                     return (
                                         <div className="text-xs text-muted-foreground py-4 italic border border-border/50 rounded-md bg-muted/20 text-center">
                                             No quota information available yet.<br />Try refreshing the account to sync data.
@@ -288,7 +282,6 @@ export function AccountDetailsDialog({
                                 return (
                                     <div className="space-y-3">
                                         {renderQuotaSection("antigravity", antigravityModels, "Antigravity Quota", "default")}
-                                        {renderQuotaSection("gemini", geminiModels, "Gemini CLI Quota", "secondary")}
                                     </div>
                                 );
                             })()}

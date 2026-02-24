@@ -12,6 +12,7 @@ import {
     ChevronRight,
     Orbit,
     FileText,
+    Network,
 } from "lucide-react";
 import {
     Tooltip,
@@ -23,6 +24,7 @@ import { useState, useEffect } from "react";
 const navItems = [
     { href: "/", icon: LayoutDashboard, labelKey: "dashboard" as const },
     { href: "/accounts", icon: Users, labelKey: "accounts" as const },
+    { href: "/api-proxy", icon: Network, labelKey: "apiProxy" as const },
     { href: "/logs", icon: FileText, labelKey: "logs" as const },
     { href: "/settings", icon: Settings, labelKey: "settings" as const },
 ];

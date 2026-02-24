@@ -16,8 +16,6 @@ import {
     GripVertical,
     Rocket,
     Fingerprint,
-    Chrome,
-    Zap,
     AlertTriangle,
     Download,
     Upload,
@@ -188,13 +186,12 @@ interface SortableAccountItemProps {
     account: AccountItem;
     t: any;
     refreshingIds: Set<string>;
-    quotaClient: "gemini_cli" | "antigravity";
     handleRefreshAccount: (id: string) => void;
     handleLaunch: (id: string) => void;
     setSelectedAccount: (account: AccountItem) => void;
     handleDelete: (id: string) => void;
     openFingerprintDialog: (account: AccountItem) => void;
-    openAddAccountDialog: (options?: { targetEmail?: string, initialStep?: "antigravity_prompt" }) => void;
+    openAddAccountDialog: (options?: { targetEmail?: string }) => void;
     openValidationDialog: (account: AccountItem) => void;
     handleExportAccount: (id: string) => void;
 }
@@ -212,7 +209,6 @@ function AccountRow({
     account,
     t,
     refreshingIds,
-    quotaClient,
     handleRefreshAccount,
     handleLaunch,
     setSelectedAccount,
@@ -231,24 +227,18 @@ function AccountRow({
     const displayStatus = getDisplayStatus(account);
     const isPaid = account.tier && account.tier !== "free-tier";
     const hasAntigravity = account.credentials?.some(c => c.client_type === "antigravity");
-    const hasGemini = account.credentials?.some(c => c.client_type === "gemini_cli");
 
-    // Quota data based on selected client
-    const quotaModels = quotaClient === "gemini_cli"
-        ? [
-            { label: "Pro", key: "gemini-3-pro", ...getModelQuota(account.credentials, "gemini_cli", "gemini-3-pro") },
-            { label: "Flash", key: "gemini-3-flash", ...getModelQuota(account.credentials, "gemini_cli", "gemini-3-flash") },
-        ]
-        : [
-            { label: "Pro", key: "gemini-3-pro", ...getModelQuota(account.credentials, "antigravity", "gemini-3-pro") },
-            { label: "Opus", key: "claude-opus", ...getModelQuota(account.credentials, "antigravity", "claude-opus") },
-        ];
+    // Antigravity quota only
+    const quotaModels = [
+        { label: "Pro", key: "gemini-3-pro", ...getModelQuota(account.credentials, "antigravity", "gemini-3-pro") },
+        { label: "Opus", key: "claude-opus", ...getModelQuota(account.credentials, "antigravity", "claude-opus") },
+    ];
 
     return (
         <div
             ref={domRef}
             style={style}
-            className={`group grid grid-cols-[300px_70px_110px_115px_115px_80px_auto] items-center gap-3 border-b border-border/60 px-4 py-2.5 text-[13px] last:border-b-0 transition-colors bg-card ${isOverlay ? "shadow-xl ring-1 ring-border rounded-md cursor-grabbing" : isDragging ? "opacity-30" : "hover:bg-accent/40"}`}
+            className={`group grid grid-cols-[300px_110px_115px_115px_80px_auto] items-center gap-3 border-b border-border/60 px-4 py-2.5 text-[13px] last:border-b-0 transition-colors bg-card ${isOverlay ? "shadow-xl ring-1 ring-border rounded-md cursor-grabbing" : isDragging ? "opacity-30" : "hover:bg-accent/40"}`}
         >
             {/* Account info */}
             <div className="flex items-center gap-2.5 min-w-0">
@@ -290,36 +280,6 @@ function AccountRow({
                         <div className="truncate text-[11px] text-muted-foreground">{account.email}</div>
                     )}
                 </div>
-            </div>
-
-            {/* Clients (formerly Provider) */}
-            <div className="flex items-center gap-2 h-4">
-                {hasGemini && (
-                    <div
-                        className="relative flex h-4 w-4 items-center justify-center shrink-0 transition-all select-none"
-                        title="Gemini CLI Connected"
-                    >
-                        <img
-                            src="/GeminiCLI.png"
-                            alt="Gemini CLI"
-                            className="transition-all duration-300 opacity-100 drop-shadow-[0_4px_4px_rgba(0,0,0,0.15)] brightness-110 saturate-110 scale-125 -translate-y-[1px]"
-                            style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                        />
-                    </div>
-                )}
-                {hasAntigravity && (
-                    <div
-                        className="relative flex h-4 w-4 items-center justify-center shrink-0 transition-all select-none"
-                        title="Antigravity Connected"
-                    >
-                        <img
-                            src="/antigravity-logo.png"
-                            alt="Antigravity"
-                            className="transition-all duration-300 opacity-100 drop-shadow-[0_4px_4px_rgba(0,0,0,0.25)] brightness-110 saturate-110 scale-110 -translate-y-[1px]"
-                            style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                        />
-                    </div>
-                )}
             </div>
 
             {/* Subscription */}
@@ -450,7 +410,7 @@ function AccountRow({
                         {!hasAntigravity && (
                             <DropdownMenuItem
                                 className="gap-2 text-xs"
-                                onClick={() => openAddAccountDialog({ targetEmail: account.email, initialStep: "antigravity_prompt" })}
+                                onClick={() => openAddAccountDialog({ targetEmail: account.email })}
                             >
                                 <div className="flex items-center justify-center w-3 h-3">
                                     <img src="/antigravity-logo.png" className="w-full h-full object-contain" alt="" />
@@ -524,7 +484,7 @@ function SortableAccountItem(props: SortableAccountItemProps) {
 export default function AccountsPage() {
     const t = useTranslations("accounts");
     const [addDialogOpen, setAddDialogOpen] = useState(false);
-    const [addDialogOptions, setAddDialogOptions] = useState<{ targetEmail?: string, initialStep?: "antigravity_prompt" }>({});
+    const [addDialogTargetEmail, setAddDialogTargetEmail] = useState<string | undefined>();
     const [accounts, setAccounts] = useState<AccountItem[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -536,24 +496,9 @@ export default function AccountsPage() {
     const [activeId, setActiveId] = useState<string | null>(null);
     const [accountToDelete, setAccountToDelete] = useState<string | null>(null);
     const [validationAccount, setValidationAccount] = useState<AccountItem | null>(null);
-    const [quotaClient, setQuotaClient] = useState<"gemini_cli" | "antigravity">("gemini_cli");
     const [exportOpen, setExportOpen] = useState(false);
     const [exportAccountIds, setExportAccountIds] = useState<string[]>([]);
     const [importOpen, setImportOpen] = useState(false);
-
-    // Hydrate quota client preference from localStorage (client-only)
-    useEffect(() => {
-        const saved = localStorage.getItem("nullgravity_quota_client");
-        if (saved === "gemini_cli" || saved === "antigravity") {
-            setQuotaClient(saved);
-        }
-    }, []);
-
-    // Persist on user click only
-    const switchQuotaClient = useCallback((v: "gemini_cli" | "antigravity") => {
-        setQuotaClient(v);
-        localStorage.setItem("nullgravity_quota_client", v);
-    }, []);
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -734,7 +679,7 @@ export default function AccountsPage() {
     };
 
     return (
-        <div className="mx-auto max-w-5xl space-y-5 animate-in fade-in duration-500">
+        <div className="mx-auto w-full max-w-7xl flex-1 flex flex-col space-y-5 animate-in fade-in duration-500">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
@@ -755,7 +700,7 @@ export default function AccountsPage() {
                         size="sm"
                         className="gap-1.5 text-xs"
                         onClick={() => {
-                            setAddDialogOptions({});
+                            setAddDialogTargetEmail(undefined);
                             setAddDialogOpen(true);
                         }}
                     >
@@ -765,7 +710,7 @@ export default function AccountsPage() {
                 </div>
             </div>
 
-            {/* Search + Client Toggle */}
+            {/* Search */}
             <div className="flex items-center gap-2">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -775,28 +720,6 @@ export default function AccountsPage() {
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
-                </div>
-                <div className="flex items-center h-8 bg-muted/60 rounded-lg p-1 gap-0.5 shrink-0">
-                    <button
-                        className={`flex items-center gap-1 h-full px-2.5 rounded-md text-[11px] font-medium transition-all ${quotaClient === "gemini_cli"
-                            ? "bg-white dark:bg-zinc-800 text-foreground shadow"
-                            : "text-muted-foreground hover:text-foreground"
-                            }`}
-                        onClick={() => switchQuotaClient("gemini_cli")}
-                    >
-                        <img src="/GeminiCLI.png" alt="" className="h-3.5 w-3.5 object-contain" />
-                        Gemini CLI
-                    </button>
-                    <button
-                        className={`flex items-center gap-1 h-full px-2.5 rounded-md text-[11px] font-medium transition-all ${quotaClient === "antigravity"
-                            ? "bg-white dark:bg-zinc-800 text-foreground shadow"
-                            : "text-muted-foreground hover:text-foreground"
-                            }`}
-                        onClick={() => switchQuotaClient("antigravity")}
-                    >
-                        <img src="/antigravity-logo.png" alt="" className="h-3.5 w-3.5 object-contain" />
-                        Antigravity
-                    </button>
                 </div>
                 <Button
                     variant="outline"
@@ -811,12 +734,11 @@ export default function AccountsPage() {
             {/* Table */}
             <div className="rounded-lg border border-border bg-card overflow-hidden">
                 {/* Header */}
-                <div className="grid grid-cols-[300px_70px_110px_115px_115px_80px_auto] gap-3 border-b border-border px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                <div className="grid grid-cols-[300px_110px_115px_115px_80px_auto] gap-3 border-b border-border px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                     <span>{t("email")}</span>
-                    <span>{t("clients") || "Clients"}</span>
                     <span>{t("subscription") || "Subscription"}</span>
                     <span>Gemini 3 Pro</span>
-                    <span>{quotaClient === "gemini_cli" ? "Gemini 3 Flash" : "Claude 4.6"}</span>
+                    <span>Claude 4.6</span>
                     <span className="pl-3">{t("lastSync")}</span>
                     <span></span>
                 </div>
@@ -832,7 +754,7 @@ export default function AccountsPage() {
                             variant="outline"
                             className="mt-4 gap-1.5 text-xs"
                             onClick={() => {
-                                setAddDialogOptions({});
+                                setAddDialogTargetEmail(undefined);
                                 setAddDialogOpen(true);
                             }}
                         >
@@ -848,13 +770,12 @@ export default function AccountsPage() {
                         {[1, 2, 3].map((i) => (
                             <div
                                 key={i}
-                                className="grid grid-cols-[300px_70px_110px_115px_115px_80px_auto] items-center gap-3 border-b border-border/60 px-4 py-3"
+                                className="grid grid-cols-[300px_110px_115px_115px_80px_auto] items-center gap-3 border-b border-border/60 px-4 py-3"
                             >
                                 <div className="flex items-center gap-2.5">
                                     <div className="h-7 w-7 rounded-full bg-muted animate-pulse" />
                                     <div className="h-3.5 w-32 rounded bg-muted animate-pulse" />
                                 </div>
-                                <div className="h-3 w-12 rounded bg-muted animate-pulse" />
                                 <div className="h-4 w-16 rounded bg-muted animate-pulse" />
                                 <div className="h-1.5 w-14 rounded bg-muted animate-pulse" />
                                 <div className="h-1.5 w-14 rounded bg-muted animate-pulse" />
@@ -882,14 +803,13 @@ export default function AccountsPage() {
                                 account={account}
                                 t={t}
                                 refreshingIds={refreshingIds}
-                                quotaClient={quotaClient}
                                 handleRefreshAccount={handleRefreshAccount}
                                 handleLaunch={handleLaunch}
                                 setSelectedAccount={setSelectedAccount}
                                 handleDelete={openDeleteConfirm}
                                 openFingerprintDialog={setFingerprintAccount}
                                 openAddAccountDialog={(opts) => {
-                                    setAddDialogOptions(opts || {});
+                                    setAddDialogTargetEmail(opts?.targetEmail);
                                     setAddDialogOpen(true);
                                 }}
                                 openValidationDialog={setValidationAccount}
@@ -906,16 +826,12 @@ export default function AccountsPage() {
                                 account={accounts.find((a) => a.id === activeId)!}
                                 t={t}
                                 refreshingIds={refreshingIds}
-                                quotaClient={quotaClient}
                                 handleRefreshAccount={handleRefreshAccount}
                                 handleLaunch={handleLaunch}
                                 setSelectedAccount={setSelectedAccount}
                                 handleDelete={openDeleteConfirm}
                                 openFingerprintDialog={setFingerprintAccount}
-                                openAddAccountDialog={(opts) => {
-                                    setAddDialogOptions(opts || {});
-                                    setAddDialogOpen(true);
-                                }}
+                                openAddAccountDialog={() => { }}
                                 isOverlay
                                 openValidationDialog={() => { }}
                                 handleExportAccount={() => { }}
@@ -964,11 +880,10 @@ export default function AccountsPage() {
                 open={addDialogOpen}
                 onOpenChange={(open) => {
                     setAddDialogOpen(open);
-                    if (!open) setTimeout(() => setAddDialogOptions({}), 200); // Clear options after close animation
+                    if (!open) setTimeout(() => setAddDialogTargetEmail(undefined), 200);
                 }}
                 onAccountAdded={fetchAccounts}
-                targetEmail={addDialogOptions.targetEmail}
-                initialStep={addDialogOptions.initialStep as any}
+                targetEmail={addDialogTargetEmail}
             />
 
             <AccountDetailsDialog
@@ -1021,7 +936,7 @@ export default function AccountsPage() {
             <ImportDialog
                 open={importOpen}
                 onOpenChange={setImportOpen}
-                clientType={quotaClient}
+                clientType={"antigravity"}
                 onComplete={fetchAccounts}
             />
         </div>
