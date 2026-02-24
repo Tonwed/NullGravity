@@ -57,7 +57,7 @@ import { getUserLocaleSync, setUserLocaleSync } from "@/i18n/locale";
 import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { useSidebarMica } from "@/hooks/use-sidebar-mica";
-
+import { getVersion } from "@tauri-apps/api/app";
 
 const sections = [
     { id: "appearance", icon: Palette, labelKey: "appearance" as const, descKey: "generalDesc" as const },
@@ -69,7 +69,6 @@ const sections = [
 ];
 
 const API_BASE = "http://127.0.0.1:8046/api";
-const APP_VERSION = "v0.1.0";
 
 function formatBytes(bytes: number, decimals = 2) {
     if (!+bytes) return "0 B";
@@ -84,6 +83,12 @@ export default function SettingsPage() {
     const t = useTranslations("settings");
     const { theme, setTheme, resolvedTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
+    const [appVersion, setAppVersion] = useState("v0.1.0");
+
+    useEffect(() => {
+        getVersion().then(v => setAppVersion(`v${v}`)).catch(() => { });
+    }, []);
+
     const [activeSection, setActiveSection] = useState("appearance");
     const [proxyEnabled, setProxyEnabled] = useState(false);
     const [proxyUrl, setProxyUrl] = useState("");
@@ -1175,7 +1180,7 @@ export default function SettingsPage() {
                                 NullGravity
                             </h3>
                             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted/50 text-xs font-medium text-muted-foreground mb-6 border border-border/50">
-                                <span>{APP_VERSION}</span>
+                                <span>{appVersion}</span>
                             </div>
 
                             {/* Author Info */}
