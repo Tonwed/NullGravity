@@ -115,6 +115,3 @@ venv.bak/
 
 # Gemini CLI specific
 .gemini/
-
-# Backend
-backend/
