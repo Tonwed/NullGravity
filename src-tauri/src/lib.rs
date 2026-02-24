@@ -21,7 +21,7 @@ pub fn run() {
             info!("NullGravity starting backend sidecar...");
             
             use tauri_plugin_shell::ShellExt;
-            match app.shell().sidecar("backend") {
+            match app.shell().sidecar("nullgravity-core") {
                 Ok(sidecar) => {
                     match sidecar.spawn() {
                         Ok(mut _child) => {

@@ -63,8 +63,10 @@ jobs:
           # 省略 tag 参数即可自动下载最新的 Release !
           if [[ "${{ matrix.platform }}" == "windows-latest" ]]; then
              gh release download -R $BACKEND_REPO --pattern "backend-x86_64-pc-windows-msvc.exe"
+             mv backend-x86_64-pc-windows-msvc.exe nullgravity-core-x86_64-pc-windows-msvc.exe
           else
              gh release download -R $BACKEND_REPO --pattern "backend-x86_64-unknown-linux-gnu"
+             mv backend-x86_64-unknown-linux-gnu nullgravity-core-x86_64-unknown-linux-gnu
           fi
           
           ls -la
