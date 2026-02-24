@@ -45,15 +45,19 @@ jobs:
       # =======================================================
       - name: Download Backend Binaries
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.PAT_FOR_BACKEND }}
         run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "Error: PAT_FOR_BACKEND secret is empty. Please add it to your repository secrets."
+            exit 1
+          fi
+          
           mkdir -p src-tauri/binaries
           cd src-tauri/binaries
           
           # github repository of your backend
           BACKEND_REPO="Tonwed/Nullgravity_backend"
-          
-          echo "Logging in to GitHub CLI to access private repository..."
-          echo "${{ secrets.PAT_FOR_BACKEND }}" | gh auth login --with-token
           
           echo "Downloading latest backend artifacts..."
           # 省略 tag 参数即可自动下载最新的 Release !
