@@ -3,7 +3,7 @@ name: Release NullGravity
 on:
   push:
     branches:
-      - master # 每次 push 到 master 就会自动开始编译
+      - master
 
 jobs:
   publish-tauri:
@@ -43,6 +43,9 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install Frontend Dependencies
+        run: npm ci
+
       # =======================================================
       # 本地构建后端 Sidecar 二进制
       # =======================================================
@@ -81,7 +84,6 @@ jobs:
           mkdir -p src-tauri/binaries
           cp backend/dist/${{ matrix.pyinstaller_name }} src-tauri/binaries/${{ matrix.binary_name }}
 
-          # 校验文件大小，防止空文件或异常小文件被打包
           FILE_SIZE=$(stat -c%s "src-tauri/binaries/${{ matrix.binary_name }}" 2>/dev/null || stat -f%z "src-tauri/binaries/${{ matrix.binary_name }}")
           echo "Binary size: $FILE_SIZE bytes"
           if [ "$FILE_SIZE" -lt 5000000 ]; then
@@ -89,19 +91,18 @@ jobs:
             exit 1
           fi
 
-      # 将当前 Action 的运行次数作为小版本号写入配置 (例如变成 0.1.34)
       - name: Bump Version
         shell: bash
         run: |
           sed -i -E 's/"version": "[0-9]+\.[0-9]+\.[0-9]+"/"version": "0.1.${{ github.run_number }}"/g' src-tauri/tauri.conf.json
 
-      # 构建并发布 Tauri
       - name: Build and Release Tauri App
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: '.'
+          tauriScript: npx tauri
           tagName: v0.1.${{ github.run_number }}
           releaseName: 'NullGravity Build 0.1.${{ github.run_number }}'
           releaseBody: '最新的全自动打包版本。'
