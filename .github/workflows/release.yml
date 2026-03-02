@@ -44,7 +44,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install Frontend Dependencies
-        run: npm ci
+        run: npm install
 
       # =======================================================
       # 本地构建后端 Sidecar 二进制
