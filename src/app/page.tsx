@@ -175,16 +175,24 @@ function QuotaProgressBar({ fraction, label, subLabel }: { fraction: number, lab
 function AccountItem({ account, t }: { account: AccountSummary, t: any }) {
   const models = [...(account.gemini_models || []), ...(account.antigravity_models || [])];
   const uniqueModels = Array.from(new Map(models.map(m => [m.name, m])).values());
+  
+  // Debug: 打印实际模型名称
+  console.log('[Dashboard] Account:', account.email, 'Models:', uniqueModels.map(m => m.name));
 
   const targetModels = [
     { label: "Claude", key: "claude-opus-4-6-thinking" },
     { label: "Gemini", key: "gemini-3.1-pro-high" },
-    { label: "Gemini Image", key: "gemini-3-pro-image" },
+    { label: "Gemini Image", key: "image", matchKeys: ["image", "imagen", "flash-image", "flash image"] },
   ];
 
   let displayModels: (ModelQuota & { displayLabel?: string })[] = targetModels
     .map(tm => {
-      const found = uniqueModels.find(m => m.name.includes(tm.key));
+      // 支持多个匹配关键词
+      const keys = tm.matchKeys || [tm.key];
+      const found = uniqueModels.find(m => {
+        const nameLower = m.name.toLowerCase();
+        return keys.some(k => nameLower.includes(k.toLowerCase()));
+      });
       return found ? { ...found, displayLabel: tm.label } : null;
     })
     .filter(Boolean) as (ModelQuota & { displayLabel?: string })[];
@@ -303,8 +311,27 @@ export default function DashboardPage() {
     }
   }, [t, stats]);
 
+  // 等待后端就绪后再加载，避免启动时序问题导致立即显示错误
+  const waitForBackendAndFetch = useCallback(async () => {
+    const maxRetries = 30; // 最多等 15 秒
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(1000) });
+        if (res.ok) {
+          await fetchStats();
+          return;
+        }
+      } catch {
+        // 后端还没就绪，继续等
+      }
+      await new Promise(r => setTimeout(r, 500));
+    }
+    // 超时后仍尝试一次
+    await fetchStats();
+  }, [fetchStats]);
+
   useEffect(() => {
-    fetchStats();
+    waitForBackendAndFetch();
     const interval = setInterval(fetchStats, 10000);
     return () => clearInterval(interval);
   }, []);

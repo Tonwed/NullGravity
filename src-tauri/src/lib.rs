@@ -9,12 +9,14 @@ struct SidecarPid(Mutex<Option<u32>>);
 fn kill_by_pid(pid: u32) {
     #[cfg(target_os = "windows")]
     {
+        // /F 强制，/T 杀整个进程树（包括 PyInstaller 解压出的 uvicorn 子进程）
         let _ = std::process::Command::new("taskkill")
-            .args(["/F", "/PID", &pid.to_string()])
+            .args(["/F", "/T", "/PID", &pid.to_string()])
             .output();
     }
     #[cfg(not(target_os = "windows"))]
     {
+        // 杀进程组
         let _ = std::process::Command::new("kill")
             .args(["-9", &pid.to_string()])
             .output();
