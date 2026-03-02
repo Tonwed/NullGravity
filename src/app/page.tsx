@@ -297,7 +297,7 @@ export default function DashboardPage() {
 
   const fetchStats = useCallback(async () => {
     try {
-      if (!stats) setLoading(true);
+      setLoading(prev => !stats ? true : prev);
       const res = await fetch(`${API_BASE}/dashboard/stats`);
       if (!res.ok) throw new Error("Failed to fetch stats");
       const data = await res.json();
@@ -309,32 +309,29 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [t, stats]);
-
-  // 等待后端就绪后再加载，避免启动时序问题导致立即显示错误
-  const waitForBackendAndFetch = useCallback(async () => {
-    const maxRetries = 30; // 最多等 15 秒
-    for (let i = 0; i < maxRetries; i++) {
-      try {
-        const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(1000) });
-        if (res.ok) {
-          await fetchStats();
-          return;
-        }
-      } catch {
-        // 后端还没就绪，继续等
-      }
-      await new Promise(r => setTimeout(r, 500));
-    }
-    // 超时后仍尝试一次
-    await fetchStats();
-  }, [fetchStats]);
+  }, [t]);
 
   useEffect(() => {
-    waitForBackendAndFetch();
+    // 等后端就绪再请求，避免启动竞态导致一直显示错误
+    let cancelled = false;
+    const run = async () => {
+      for (let i = 0; i < 30; i++) {
+        if (cancelled) return;
+        try {
+          const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(1000) });
+          if (res.ok) break;
+        } catch { /* 还没就绪 */ }
+        await new Promise(r => setTimeout(r, 500));
+      }
+      if (!cancelled) fetchStats();
+    };
+    run();
     const interval = setInterval(fetchStats, 10000);
-    return () => clearInterval(interval);
-  }, []);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [fetchStats]);
 
   if (loading && !stats) {
     return (
