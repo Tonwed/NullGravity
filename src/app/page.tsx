@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Activity,
   AlertCircle,
@@ -294,10 +294,12 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const tRef = useRef(t);
+  tRef.current = t;
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchStats = useCallback(async () => {
+  const fetchStats = useRef(async () => {
     try {
-      setLoading(prev => !stats ? true : prev);
       const res = await fetch(`${API_BASE}/dashboard/stats`);
       if (!res.ok) throw new Error("Failed to fetch stats");
       const data = await res.json();
@@ -305,33 +307,44 @@ export default function DashboardPage() {
       setError(null);
     } catch (err) {
       console.error(err);
-      setError(t("common.error"));
+      setError(tRef.current("common.error"));
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }).current;
 
   useEffect(() => {
-    // 等后端就绪再请求，避免启动竞态导致一直显示错误
     let cancelled = false;
     const run = async () => {
+      // 直接重试 stats，成功即停，失败等待重试，最多 30 次（15 秒）
       for (let i = 0; i < 30; i++) {
         if (cancelled) return;
         try {
-          const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(1000) });
-          if (res.ok) break;
-        } catch { /* 还没就绪 */ }
+          const res = await fetch(`${API_BASE}/dashboard/stats`, { signal: AbortSignal.timeout(2000) });
+          if (res.ok) {
+            const data = await res.json();
+            setStats(data);
+            setError(null);
+            setLoading(false);
+            break;
+          }
+        } catch { /* 后端还没就绪 */ }
         await new Promise(r => setTimeout(r, 500));
       }
-      if (!cancelled) fetchStats();
+      if (!cancelled) {
+        setLoading(false);
+        // 启动轮询
+        const interval = setInterval(fetchStats, 10000);
+        // 存到 ref 以便 cleanup
+        intervalRef.current = interval;
+      }
     };
     run();
-    const interval = setInterval(fetchStats, 10000);
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [fetchStats]);
+  }, []);
 
   if (loading && !stats) {
     return (
