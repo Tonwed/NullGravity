@@ -31,7 +31,7 @@ pub fn run() {
             match app.shell().sidecar("nullgravity-core") {
                 Ok(sidecar) => {
                     match sidecar.spawn() {
-                        Ok(child) => {
+                        Ok((_rx, child)) => {
                             info!("Backend sidecar started successfully.");
                             // 把 child 存起来，防止被 drop 导致进程被 kill，
                             // 同时在退出时可以拿到它来主动 kill
