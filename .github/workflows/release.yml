@@ -60,6 +60,8 @@ jobs:
           pyinstaller \
             --onefile \
             --name backend \
+            --noconsole \
+            --icon ../src-tauri/icons/icon.ico \
             --hidden-import aiosqlite \
             --hidden-import uvicorn.lifespan.on \
             --hidden-import uvicorn.loops.auto \
