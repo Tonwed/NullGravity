@@ -230,15 +230,16 @@ function AccountRow({
 
     // Antigravity quota only
     const quotaModels = [
-        { label: "Pro", key: "gemini-3-pro", ...getModelQuota(account.credentials, "antigravity", "gemini-3-pro") },
-        { label: "Opus", key: "claude-opus", ...getModelQuota(account.credentials, "antigravity", "claude-opus") },
+        { label: "Gemini", key: "gemini", ...getModelQuota(account.credentials, "antigravity", "gemini-3.1-pro") },
+        { label: "Gemini Image", key: "gemini-image", ...getModelQuota(account.credentials, "antigravity", "gemini-3.1-flash-image") },
+        { label: "Claude", key: "claude", ...getModelQuota(account.credentials, "antigravity", "claude-opus") },
     ];
 
     return (
         <div
             ref={domRef}
             style={style}
-            className={`group grid grid-cols-[300px_110px_115px_115px_80px_auto] items-center gap-3 border-b border-border/60 px-4 py-2.5 text-[13px] last:border-b-0 transition-colors bg-card ${isOverlay ? "shadow-xl ring-1 ring-border rounded-md cursor-grabbing" : isDragging ? "opacity-30" : "hover:bg-accent/40"}`}
+            className={`group grid grid-cols-[250px_100px_105px_105px_105px_80px_auto] items-center gap-3 border-b border-border/60 px-4 py-2.5 text-[13px] last:border-b-0 transition-colors bg-card ${isOverlay ? "shadow-xl ring-1 ring-border rounded-md cursor-grabbing" : isDragging ? "opacity-30" : "hover:bg-accent/40"}`}
         >
             {/* Account info */}
             <div className="flex items-center gap-2.5 min-w-0">
@@ -343,6 +344,33 @@ function AccountRow({
                     })()}
                     <span className="text-muted-foreground">
                         {quotaModels[1].pct !== null ? `${quotaModels[1].pct}%` : "—"}
+                    </span>
+                </div>
+            </div>
+
+            {/* Quota Model 3 */}
+            <div className="flex flex-col gap-1 w-full max-w-[90px]" title={`${quotaModels[2].label}: ${quotaModels[2].pct !== null ? quotaModels[2].pct + '%' : 'N/A'}`}>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+                    <div
+                        className={`h-full rounded-full transition-all ${quotaModels[2].pct === null ? "bg-muted-foreground/20"
+                            : quotaModels[2].pct > 60 ? "bg-emerald-500"
+                                : quotaModels[2].pct > 30 ? "bg-amber-500"
+                                    : "bg-red-500"
+                            }`}
+                        style={{ width: `${quotaModels[2].pct ?? 0}%` }}
+                    />
+                </div>
+                <div className="flex items-center justify-between w-full text-[11px] leading-none">
+                    {(() => {
+                        const countdown = formatResetCountdown(quotaModels[2].resetTime);
+                        return (
+                            <span className={countdown && countdown.hours < 8 ? "text-emerald-500 font-medium" : "text-muted-foreground"}>
+                                {countdown ? countdown.text : ""}
+                            </span>
+                        );
+                    })()}
+                    <span className="text-muted-foreground">
+                        {quotaModels[2].pct !== null ? `${quotaModels[2].pct}%` : "—"}
                     </span>
                 </div>
             </div>
@@ -734,11 +762,12 @@ export default function AccountsPage() {
             {/* Table */}
             <div className="rounded-lg border border-border bg-card overflow-hidden">
                 {/* Header */}
-                <div className="grid grid-cols-[300px_110px_115px_115px_80px_auto] gap-3 border-b border-border px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                <div className="grid grid-cols-[250px_100px_105px_105px_105px_80px_auto] gap-3 border-b border-border px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                     <span>{t("email")}</span>
                     <span>{t("subscription") || "Subscription"}</span>
-                    <span>Gemini 3 Pro</span>
-                    <span>Claude 4.6</span>
+                    <span>Gemini</span>
+                    <span>Gemini Image</span>
+                    <span>Claude</span>
                     <span className="pl-3">{t("lastSync")}</span>
                     <span></span>
                 </div>
@@ -770,13 +799,14 @@ export default function AccountsPage() {
                         {[1, 2, 3].map((i) => (
                             <div
                                 key={i}
-                                className="grid grid-cols-[300px_110px_115px_115px_80px_auto] items-center gap-3 border-b border-border/60 px-4 py-3"
+                                className="grid grid-cols-[250px_100px_105px_105px_105px_80px_auto] items-center gap-3 border-b border-border/60 px-4 py-3"
                             >
                                 <div className="flex items-center gap-2.5">
                                     <div className="h-7 w-7 rounded-full bg-muted animate-pulse" />
                                     <div className="h-3.5 w-32 rounded bg-muted animate-pulse" />
                                 </div>
                                 <div className="h-4 w-16 rounded bg-muted animate-pulse" />
+                                <div className="h-1.5 w-14 rounded bg-muted animate-pulse" />
                                 <div className="h-1.5 w-14 rounded bg-muted animate-pulse" />
                                 <div className="h-1.5 w-14 rounded bg-muted animate-pulse" />
                                 <div className="h-3 w-14 rounded bg-muted animate-pulse ml-3" />

@@ -163,7 +163,7 @@ const AVAILABLE_MODELS = [
     { id: "gemini-3.1-pro-low", name: "Gemini 3.1 Pro Low", descKey: "modelDescGemini31ProLow", owner: "google" },
     { id: "gemini-3-pro-high", name: "Gemini 3 Pro High", descKey: "modelDescGemini3ProHigh", owner: "google" },
     { id: "gemini-3-pro-low", name: "Gemini 3 Pro Low", descKey: "modelDescGemini3ProLow", owner: "google" },
-    { id: "gemini-3-pro-image", name: "Gemini 3 Pro Image", descKey: "modelDescGemini3ProImage", owner: "google" },
+    { id: "gemini-3.1-flash-image", name: "Gemini 3.1 Flash Image", descKey: "modelDescGemini3ProImage", owner: "google" },
     { id: "gemini-3-flash", name: "Gemini 3 Flash", descKey: "modelDescGemini3Flash", owner: "google" },
     { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", descKey: "modelDescGemini25Pro", owner: "google" },
     { id: "gemini-2.5-flash-thinking", name: "Gemini 2.5 Flash Thinking", descKey: "modelDescGemini25FlashThinking", owner: "google" },

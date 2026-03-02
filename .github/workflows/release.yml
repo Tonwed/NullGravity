@@ -14,9 +14,11 @@ jobs:
       matrix:
         include:
           - platform: 'windows-latest'
-            args: ''
+            binary_name: 'nullgravity-core-x86_64-pc-windows-msvc.exe'
+            pyinstaller_name: 'backend.exe'
           - platform: 'ubuntu-22.04'
-            args: ''
+            binary_name: 'nullgravity-core-x86_64-unknown-linux-gnu'
+            pyinstaller_name: 'backend'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -36,46 +38,61 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: Install Frontend Dependencies
-        working-directory: .
-        run: npm install
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
       # =======================================================
-      # 去私有后端仓库下载最新打包好的 Sidecar 二进制文件
+      # 本地构建后端 Sidecar 二进制
       # =======================================================
-      - name: Download Backend Binaries
+      - name: Build Backend with PyInstaller
         shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.PAT_FOR_BACKEND }}
+        working-directory: backend
         run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "Error: PAT_FOR_BACKEND secret is empty. Please add it to your repository secrets."
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install -r requirements.txt
+
+          pyinstaller \
+            --onefile \
+            --name backend \
+            --hidden-import aiosqlite \
+            --hidden-import uvicorn.lifespan.on \
+            --hidden-import uvicorn.loops.auto \
+            --hidden-import uvicorn.protocols.http.auto \
+            --hidden-import uvicorn.protocols.http.h11_impl \
+            --hidden-import uvicorn.protocols.websockets.auto \
+            --hidden-import uvicorn.protocols.websockets.websockets_impl \
+            --hidden-import uvicorn.logging \
+            --hidden-import uvicorn.main \
+            --hidden-import anyio \
+            --hidden-import anyio._backends._asyncio \
+            --hidden-import sqlalchemy.dialects.sqlite \
+            --hidden-import sqlalchemy.dialects.sqlite.aiosqlite \
+            --hidden-import pydantic.v1 \
+            --collect-all curl_cffi \
+            --collect-all uvicorn \
+            main.py
+
+      - name: Place Binary into Tauri Binaries
+        shell: bash
+        run: |
+          mkdir -p src-tauri/binaries
+          cp backend/dist/${{ matrix.pyinstaller_name }} src-tauri/binaries/${{ matrix.binary_name }}
+
+          # 校验文件大小，防止空文件或异常小文件被打包
+          FILE_SIZE=$(stat -c%s "src-tauri/binaries/${{ matrix.binary_name }}" 2>/dev/null || stat -f%z "src-tauri/binaries/${{ matrix.binary_name }}")
+          echo "Binary size: $FILE_SIZE bytes"
+          if [ "$FILE_SIZE" -lt 5000000 ]; then
+            echo "Error: Binary is too small ($FILE_SIZE bytes), build likely failed."
             exit 1
           fi
-          
-          mkdir -p src-tauri/binaries
-          cd src-tauri/binaries
-          
-          # github repository of your backend
-          BACKEND_REPO="Tonwed/Nullgravity_backend"
-          
-          echo "Downloading latest backend artifacts..."
-          # 省略 tag 参数即可自动下载最新的 Release !
-          if [[ "${{ matrix.platform }}" == "windows-latest" ]]; then
-             gh release download -R $BACKEND_REPO --pattern "backend-x86_64-pc-windows-msvc.exe"
-             mv backend-x86_64-pc-windows-msvc.exe nullgravity-core-x86_64-pc-windows-msvc.exe
-          else
-             gh release download -R $BACKEND_REPO --pattern "backend-x86_64-unknown-linux-gnu"
-             mv backend-x86_64-unknown-linux-gnu nullgravity-core-x86_64-unknown-linux-gnu
-          fi
-          
-          ls -la
 
       # 将当前 Action 的运行次数作为小版本号写入配置 (例如变成 0.1.34)
       - name: Bump Version
         shell: bash
         run: |
-          # 针对 tauri.conf.json 的简单的正则替换
           sed -i -E 's/"version": "[0-9]+\.[0-9]+\.[0-9]+"/"version": "0.1.${{ github.run_number }}"/g' src-tauri/tauri.conf.json
 
       # 构建并发布 Tauri
@@ -85,7 +102,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: '.'
-          # 动态命名这个版本的 Tag
           tagName: v0.1.${{ github.run_number }}
           releaseName: 'NullGravity Build 0.1.${{ github.run_number }}'
           releaseBody: '最新的全自动打包版本。'

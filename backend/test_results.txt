@@ -1,0 +1,20 @@
+
+--- Testing model: gemini-2.5-flash ---
+F1 (Outer Model): 401 {
+  "error": {
+    "code": 401,
+    "message": "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://develo
+F2 (Fully Qualified Inner + Outer Model): 401 {
+  "error": {
+    "code": 401,
+    "message": "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://develo
+
+--- Testing model: claude-opus-4-6-thinking ---
+F1 (Outer Model): 401 {
+  "error": {
+    "code": 401,
+    "message": "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://develo
+F2 (Fully Qualified Inner + Outer Model): 401 {
+  "error": {
+    "code": 401,
+    "message": "Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://develo
