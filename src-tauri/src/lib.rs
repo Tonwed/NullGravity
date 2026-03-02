@@ -55,12 +55,16 @@ pub fn run() {
         .on_window_event(|window, event| {
             // 主窗口关闭时，kill 掉后端进程，防止残留
             if let tauri::WindowEvent::Destroyed = event {
-                let state = window.app_handle().state::<SidecarState>();
-                if let Ok(mut guard) = state.0.lock() {
-                    if let Some(child) = guard.take() {
-                        let _ = child.kill();
-                        info!("Backend sidecar killed on window close.");
-                    }
+                let app = window.app_handle();
+                let child = app
+                    .state::<SidecarState>()
+                    .0
+                    .lock()
+                    .ok()
+                    .and_then(|mut g| g.take());
+                if let Some(child) = child {
+                    let _ = child.kill();
+                    info!("Backend sidecar killed on window close.");
                 }
             }
         })
