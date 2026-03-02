@@ -3,6 +3,9 @@ NullGravity Backend - FastAPI Application
 AI Account Management & Protocol Proxy System
 """
 
+import multiprocessing
+multiprocessing.freeze_support()  # PyInstaller Windows 必须放在最顶部，防止子进程无限递归
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -91,7 +94,6 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 
 
-
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint."""
@@ -100,4 +102,11 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8046, reload=False)
+    uvicorn.run(
+        app,
+        host="127.0.0.1",
+        port=8046,
+        reload=False,
+        workers=1,
+        loop="asyncio",
+    )
