@@ -81,7 +81,6 @@ NullGravity 结合了 Web 和桌面技术，提供统一的使用体验。
     npm run tauri dev
     ```
 
-本项目参考 [lbjlaq/Antigravity-Manager](https://github.com/lbjlaq/Antigravity-Manager) 。
 
 ---
 

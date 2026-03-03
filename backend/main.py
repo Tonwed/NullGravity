@@ -62,9 +62,16 @@ app = FastAPI(
 )
 
 # CORS middleware for frontend communication
+_backend_port = int(os.environ.get("NULLGRAVITY_PORT", "8046"))
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:1420", "http://127.0.0.1:8046", "tauri://localhost"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:1420",
+        f"http://127.0.0.1:{_backend_port}",
+        "tauri://localhost",
+        "http://tauri.localhost",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -102,10 +109,11 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
+    port = int(os.environ.get("NULLGRAVITY_PORT", "8046"))
     uvicorn.run(
         app,
         host="127.0.0.1",
-        port=8046,
+        port=port,
         reload=False,
         workers=1,
         loop="asyncio",

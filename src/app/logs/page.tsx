@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getApiBase } from "@/lib/api";
 import { useTranslations } from "next-intl";
 import {
     FileText,
@@ -112,7 +113,7 @@ export default function LogsPage() {
                                     {log.account ? (
                                         <>
                                             <Avatar className="h-5 w-5">
-                                                <AvatarImage src={`http://127.0.0.1:8046/api/accounts/${log.account.id}/avatar`} />
+                                                <AvatarImage src={`${getApiBase()}/accounts/${log.account.id}/avatar`} />
                                                 <AvatarFallback>{log.account.email[0].toUpperCase()}</AvatarFallback>
                                             </Avatar>
                                             <div className="truncate text-[10px] text-muted-foreground" title={log.account.email}>

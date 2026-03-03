@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Copy, Download, Check, Loader2 } from "lucide-react";
 
-const API_BASE = "http://127.0.0.1:8046/api";
+import { apiFetch, getApiBase } from "@/lib/api";
 
 interface ExportDialogProps {
     open: boolean;
@@ -29,7 +29,7 @@ export function ExportDialog({ open, onOpenChange, accountIds }: ExportDialogPro
     const fetchExportData = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${API_BASE}/accounts/export`, {
+            const res = await apiFetch(`${getApiBase()}/accounts/export`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ account_ids: accountIds || [] }),

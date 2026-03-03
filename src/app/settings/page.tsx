@@ -68,7 +68,7 @@ const sections = [
     { id: "about", icon: Info, labelKey: "about" as const, descKey: "aboutDesc" as const },
 ];
 
-const API_BASE = "http://127.0.0.1:8046/api";
+import { apiFetch, getApiBase } from "@/lib/api";
 
 function formatBytes(bytes: number, decimals = 2) {
     if (!+bytes) return "0 B";
@@ -163,7 +163,7 @@ export default function SettingsPage() {
     // Load settings from backend
     const loadSettings = useCallback(async () => {
         try {
-            const res = await fetch(`${API_BASE}/settings/`);
+            const res = await apiFetch(`${getApiBase()}/settings/`);
             if (res.ok) {
                 const data = await res.json();
                 setProxyUrl(data.settings.proxy_url || "");
@@ -189,9 +189,9 @@ export default function SettingsPage() {
         setProxyStatusLoading(true);
         try {
             const endpoint = force
-                ? `${API_BASE}/settings/proxy/status?force=true`
-                : `${API_BASE}/settings/proxy/status`;
-            const res = await fetch(endpoint);
+                ? `${getApiBase()}/settings/proxy/status?force=true`
+                : `${getApiBase()}/settings/proxy/status`;
+            const res = await apiFetch(endpoint);
             if (res.ok) {
                 setProxyStatus(await res.json());
             }
@@ -209,7 +209,7 @@ export default function SettingsPage() {
     // Open data directory
     const openDataDir = useCallback(async () => {
         try {
-            await fetch(`${API_BASE}/settings/data-dir/open`, { method: "POST" });
+            await apiFetch(`${getApiBase()}/settings/data-dir/open`, { method: "POST" });
         } catch { }
     }, []);
 
@@ -227,7 +227,7 @@ export default function SettingsPage() {
 
     const loadStorageStats = useCallback(async () => {
         try {
-            const res = await fetch(`${API_BASE}/settings/storage/stats`);
+            const res = await apiFetch(`${getApiBase()}/settings/storage/stats`);
             if (res.ok) {
                 setStorageStats(await res.json());
             }
@@ -243,7 +243,7 @@ export default function SettingsPage() {
     const confirmClearStorage = async () => {
         setClearDialogOpen(false);
         try {
-            await fetch(`${API_BASE}/settings/storage/clear?type=all`, { method: "POST" });
+            await apiFetch(`${getApiBase()}/settings/storage/clear?type=all`, { method: "POST" });
             loadStorageStats();
             toast({
                 title: t("cleared"),
@@ -261,7 +261,7 @@ export default function SettingsPage() {
         setProxySaving(true);
         setProxySaved(false);
         try {
-            await fetch(`${API_BASE}/settings/`, {
+            await apiFetch(`${getApiBase()}/settings/`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify([
@@ -292,7 +292,7 @@ export default function SettingsPage() {
     // Save auto-refresh settings
     const handleSaveAutoRefresh = async (key: string, value: string) => {
         try {
-            await fetch(`${API_BASE}/settings/`, {
+            await apiFetch(`${getApiBase()}/settings/`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify([{ key, value }]),
@@ -332,7 +332,7 @@ export default function SettingsPage() {
     // Antigravity handlers
     const handleSaveAntigravity = async (key: string, value: string) => {
         try {
-            await fetch(`${API_BASE}/settings/`, {
+            await apiFetch(`${getApiBase()}/settings/`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify([{ key, value }]),
@@ -345,7 +345,7 @@ export default function SettingsPage() {
     const handleDetectAntigravity = async () => {
         setAntigravityDetectStatus("detecting");
         try {
-            const res = await fetch(`${API_BASE}/settings/antigravity/detect`);
+            const res = await apiFetch(`${getApiBase()}/settings/antigravity/detect`);
             if (res.ok) {
                 const data = await res.json();
                 if (data.path) {
@@ -389,7 +389,7 @@ export default function SettingsPage() {
 
     const handleSelectAntigravity = async () => {
         try {
-            const res = await fetch(`${API_BASE}/settings/antigravity/browse`, {
+            const res = await apiFetch(`${getApiBase()}/settings/antigravity/browse`, {
                 method: "POST",
             });
             if (res.ok) {
@@ -416,7 +416,7 @@ export default function SettingsPage() {
     const handleDetectAntigravityArgs = async () => {
         setAntigravityArgsDetecting(true);
         try {
-            const res = await fetch(`${API_BASE}/settings/antigravity/args`);
+            const res = await apiFetch(`${getApiBase()}/settings/antigravity/args`);
             if (res.ok) {
                 const data = await res.json();
                 if (data.detected && data.args) {
@@ -459,7 +459,7 @@ export default function SettingsPage() {
         setAntigravityCacheLoading(true);
         setAntigravityCacheConfirm(false);
         try {
-            await fetch(`${API_BASE}/settings/antigravity/clear-cache`, { method: "POST" });
+            await apiFetch(`${getApiBase()}/settings/antigravity/clear-cache`, { method: "POST" });
             const timer = setTimeout(() => setAntigravityCacheLoading(false), 1000);
             return () => clearTimeout(timer);
         } catch {

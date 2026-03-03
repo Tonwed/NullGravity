@@ -69,7 +69,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
-const API_BASE = "http://127.0.0.1:8046/api";
+import { apiFetch, getApiBase } from "@/lib/api";
 
 const sections = [
     { id: "proxy", icon: Network, labelKey: "antigravityProxy" as const, descKey: "antigravityProxyDesc" as const },
@@ -342,7 +342,7 @@ export default function ApiProxyPage() {
     // Fetch Proxy Status
     const fetchStatus = useCallback(async () => {
         try {
-            const res = await fetch(`${API_BASE}/api-proxy/status`);
+            const res = await apiFetch(`${getApiBase()}/api-proxy/status`);
             if (res.ok) {
                 const data = await res.json();
                 setStatus(data);
@@ -370,7 +370,7 @@ export default function ApiProxyPage() {
     const fetchTokens = useCallback(async () => {
         setLoadingTokens(true);
         try {
-            const res = await fetch(`${API_BASE}/api-tokens/`);
+            const res = await apiFetch(`${getApiBase()}/api-tokens/`);
             if (res.ok) {
                 const data = await res.json();
                 setTokens(data.items || []);
@@ -389,7 +389,7 @@ export default function ApiProxyPage() {
     const fetchLogs = useCallback(async () => {
         setLoadingLogs(true);
         try {
-            const res = await fetch(`${API_BASE}/api-proxy/logs?limit=200`);
+            const res = await apiFetch(`${getApiBase()}/api-proxy/logs?limit=200`);
             if (res.ok) {
                 const data = await res.json();
                 setLogs(data.items || []);
@@ -402,7 +402,7 @@ export default function ApiProxyPage() {
     const fetchMappings = useCallback(async () => {
         setLoadingMappings(true);
         try {
-            const res = await fetch(`${API_BASE}/model-mappings/`);
+            const res = await apiFetch(`${getApiBase()}/model-mappings/`);
             if (res.ok) {
                 const data = await res.json();
                 setMappings(data.items || []);
@@ -428,7 +428,7 @@ export default function ApiProxyPage() {
     const handleStart = async () => {
         setActing(true);
         try {
-            await fetch(`${API_BASE}/api-proxy/start`, {
+            await apiFetch(`${getApiBase()}/api-proxy/start`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -444,7 +444,7 @@ export default function ApiProxyPage() {
     const handleStop = async () => {
         setActing(true);
         try {
-            await fetch(`${API_BASE}/api-proxy/stop`, { method: "POST" });
+            await apiFetch(`${getApiBase()}/api-proxy/stop`, { method: "POST" });
             await fetchStatus();
         } catch { /* ignore */ }
         finally { setActing(false); }
@@ -453,7 +453,7 @@ export default function ApiProxyPage() {
     const handleRefreshPool = async () => {
         setRefreshingPool(true);
         try {
-            await fetch(`${API_BASE}/api-proxy/refresh-pool`, { method: "POST" });
+            await apiFetch(`${getApiBase()}/api-proxy/refresh-pool`, { method: "POST" });
             await fetchStatus();
         } catch { /* ignore */ }
         finally { setRefreshingPool(false); }
@@ -461,7 +461,7 @@ export default function ApiProxyPage() {
 
     const savePoolSetting = async (key: string, value: string) => {
         try {
-            await fetch(`${API_BASE}/settings/`, {
+            await apiFetch(`${getApiBase()}/settings/`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify([{ key, value }]),
@@ -493,7 +493,7 @@ export default function ApiProxyPage() {
         if (!newTokenName.trim()) return;
         setCreatingToken(true);
         try {
-            const res = await fetch(`${API_BASE}/api-tokens/`, {
+            const res = await apiFetch(`${getApiBase()}/api-tokens/`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ name: newTokenName.trim() })
@@ -516,7 +516,7 @@ export default function ApiProxyPage() {
 
     const handleToggleToken = async (id: number) => {
         try {
-            await fetch(`${API_BASE}/api-tokens/${id}/toggle`, { method: "PATCH" });
+            await apiFetch(`${getApiBase()}/api-tokens/${id}/toggle`, { method: "PATCH" });
             fetchTokens();
         } catch { }
     };
@@ -532,11 +532,11 @@ export default function ApiProxyPage() {
         setIsConfirming(true);
         try {
             if (confirmDialog.type === "delete") {
-                await fetch(`${API_BASE}/api-tokens/${id}`, { method: "DELETE" });
+                await apiFetch(`${getApiBase()}/api-tokens/${id}`, { method: "DELETE" });
                 setConfirmDialog({ ...confirmDialog, isOpen: false });
                 fetchTokens();
             } else if (confirmDialog.type === "regenerate") {
-                const res = await fetch(`${API_BASE}/api-tokens/${id}/regenerate`, { method: "POST" });
+                const res = await apiFetch(`${getApiBase()}/api-tokens/${id}/regenerate`, { method: "POST" });
                 if (res.ok) {
                     const data = await res.json();
                     setNewlyGeneratedToken(data.token);
@@ -583,13 +583,13 @@ export default function ApiProxyPage() {
         try {
             if (editingId === "__new__") {
                 const nextPriority = mappings.length > 0 ? Math.max(...mappings.map(m => m.priority)) + 1 : 0;
-                await fetch(`${API_BASE}/model-mappings/`, {
+                await apiFetch(`${getApiBase()}/model-mappings/`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ pattern: editPattern.trim(), target: editTarget.trim(), priority: nextPriority }),
                 });
             } else {
-                await fetch(`${API_BASE}/model-mappings/${editingId}`, {
+                await apiFetch(`${getApiBase()}/model-mappings/${editingId}`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ pattern: editPattern.trim(), target: editTarget.trim() }),
@@ -605,7 +605,7 @@ export default function ApiProxyPage() {
         const mapping = mappings.find(m => m.id === id);
         if (!mapping) return;
         try {
-            await fetch(`${API_BASE}/model-mappings/${id}`, {
+            await apiFetch(`${getApiBase()}/model-mappings/${id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ is_active: !mapping.is_active }),
@@ -618,7 +618,7 @@ export default function ApiProxyPage() {
         const id = deleteMappingConfirm.id;
         if (!id) return;
         try {
-            await fetch(`${API_BASE}/model-mappings/${id}`, { method: "DELETE" });
+            await apiFetch(`${getApiBase()}/model-mappings/${id}`, { method: "DELETE" });
             setDeleteMappingConfirm({ isOpen: false, id: null });
             fetchMappings();
         } catch { }
@@ -633,7 +633,7 @@ export default function ApiProxyPage() {
         const reordered = arrayMove(mappings, oldIndex, newIndex);
         setMappings(reordered);
         try {
-            await fetch(`${API_BASE}/model-mappings/reorder`, {
+            await apiFetch(`${getApiBase()}/model-mappings/reorder`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ items: reordered.map((m, i) => ({ id: m.id, priority: i })) }),
@@ -645,7 +645,7 @@ export default function ApiProxyPage() {
         setUsageTokenId(tokenId);
         setLoadingUsage(true);
         try {
-            const res = await fetch(`${API_BASE}/api-proxy/logs?limit=200`);
+            const res = await apiFetch(`${getApiBase()}/api-proxy/logs?limit=200`);
             if (res.ok) {
                 const data = await res.json();
                 setUsageLogs(data.items || []);

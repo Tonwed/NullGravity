@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getApiBase } from "@/lib/api";
 import { useTranslations } from "next-intl";
 import {
     Dialog,
@@ -69,7 +70,7 @@ export function AccountDetailsDialog({
                                         {account.avatar_url ? (
                                             <img
                                                 src={account.avatar_cached
-                                                    ? `http://127.0.0.1:8046/api/accounts/${account.id}/avatar`
+                                                    ? `${getApiBase()}/accounts/${account.id}/avatar`
                                                     : account.avatar_url
                                                 }
                                                 alt={account.display_name || account.email}

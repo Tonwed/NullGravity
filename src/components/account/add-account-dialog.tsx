@@ -19,9 +19,9 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 
-const API_BASE = "http://127.0.0.1:8046/api";
 const POLL_INTERVAL = 2000; // ms
 const AUTH_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+import { apiFetch, getApiBase } from "@/lib/api";
 
 type AuthStep = "idle" | "authenticating" | "setting_up" | "success" | "error";
 
@@ -87,7 +87,7 @@ export function AddAccountDialog({
         setError("");
 
         try {
-            const res = await fetch(`${API_BASE}/auth/google/start?client_type=antigravity`, {
+            const res = await apiFetch(`${getApiBase()}/auth/google/start?client_type=antigravity`, {
                 method: "POST",
             });
 
@@ -109,8 +109,8 @@ export function AddAccountDialog({
             // Start polling for auth status
             pollRef.current = setInterval(async () => {
                 try {
-                    const statusRes = await fetch(
-                        `${API_BASE}/auth/google/status/${data.session_id}`
+                    const statusRes = await apiFetch(
+                        `${getApiBase()}/auth/google/status/${data.session_id}`
                     );
                     const statusData = await statusRes.json();
 
@@ -132,7 +132,7 @@ export function AddAccountDialog({
                         // Trigger setup (fetch user data)
                         if (statusData.account_id) {
                             try {
-                                await fetch(`${API_BASE}/auth/google/setup/${statusData.account_id}`, { method: "POST" });
+                                await apiFetch(`${getApiBase()}/auth/google/setup/${statusData.account_id}`, { method: "POST" });
                             } catch (e) {
                                 console.error("Setup failed after auth", e);
                             }

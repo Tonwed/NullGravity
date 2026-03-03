@@ -19,7 +19,7 @@ import {
     AlertTriangle,
 } from "lucide-react";
 
-const API_BASE = "http://127.0.0.1:8046/api";
+import { apiFetch, getApiBase } from "@/lib/api";
 
 interface DeviceProfile {
     machineId: string;
@@ -71,8 +71,8 @@ export function DeviceFingerprintDialog({
         if (!accountId) return;
         setLoading(true);
         try {
-            const res = await fetch(
-                `${API_BASE}/accounts/${accountId}/device-profile`
+            const res = await apiFetch(
+                `${getApiBase()}/accounts/${accountId}/device-profile`
             );
             if (res.ok) {
                 const data = await res.json();
@@ -97,8 +97,8 @@ export function DeviceFingerprintDialog({
         if (!accountId) return;
         setRegenerating(true);
         try {
-            const res = await fetch(
-                `${API_BASE}/accounts/${accountId}/device-profile/regenerate`,
+            const res = await apiFetch(
+                `${getApiBase()}/accounts/${accountId}/device-profile/regenerate`,
                 { method: "POST" }
             );
             if (res.ok) {

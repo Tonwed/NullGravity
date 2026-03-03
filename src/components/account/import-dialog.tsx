@@ -21,7 +21,7 @@ import {
     FileJson,
 } from "lucide-react";
 
-const API_BASE = "http://127.0.0.1:8046/api";
+import { apiFetch, getApiBase } from "@/lib/api";
 
 type ImportPhase = "select" | "preview" | "importing" | "done";
 
@@ -157,7 +157,7 @@ export function ImportDialog({ open, onOpenChange, clientType, onComplete }: Imp
 
             const acct = parsedAccounts[i];
             try {
-                const res = await fetch(`${API_BASE}/accounts/import`, {
+                const res = await apiFetch(`${getApiBase()}/accounts/import`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ accounts: [acct] }),

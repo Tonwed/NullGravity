@@ -1,25 +1,38 @@
-use std::sync::{Arc, Mutex};
+use std::net::TcpListener;
+use std::sync::Mutex;
 use tauri::Manager;
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandEvent;
+use tauri::utils::config::WindowEffectsConfig;
+use tauri::utils::WindowEffect;
 
-// 只存 PID，用系统级 kill，不依赖 CommandChild::kill()
 struct SidecarPid(Mutex<Option<u32>>);
 
-fn kill_by_pid(pid: u32) {
+/// 找一个系统可用的空闲端口
+fn find_free_port() -> u16 {
+    TcpListener::bind("127.0.0.1:0")
+        .expect("Failed to bind to find free port")
+        .local_addr()
+        .unwrap()
+        .port()
+}
+
+/// 非阻塞 kill，不弹黑窗口
+fn kill_by_pid_nowait(pid: u32) {
     #[cfg(target_os = "windows")]
     {
-        // /F 强制，/T 杀整个进程树（包括 PyInstaller 解压出的 uvicorn 子进程）
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
         let _ = std::process::Command::new("taskkill")
             .args(["/F", "/T", "/PID", &pid.to_string()])
-            .output();
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn();
     }
     #[cfg(not(target_os = "windows"))]
     {
-        // 杀进程组
         let _ = std::process::Command::new("kill")
             .args(["-9", &pid.to_string()])
-            .output();
+            .spawn();
     }
 }
 
@@ -30,28 +43,55 @@ fn greet(name: &str) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let port = find_free_port();
+    eprintln!("[NullGravity] Using backend port: {}", port);
+
+    let init_script = format!("window.__BACKEND_PORT__ = {};", port);
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .manage(SidecarPid(Mutex::new(None)))
-        .setup(|app| {
+        .setup(move |app| {
+            // 手动创建窗口，注入端口初始化脚本，恢复 Mica 效果
+            tauri::WebviewWindowBuilder::new(
+                app,
+                "main",
+                tauri::WebviewUrl::App("index.html".into()),
+            )
+            .title("NullGravity")
+            .inner_size(1280.0, 800.0)
+            .min_inner_size(900.0, 600.0)
+            .center()
+            .transparent(true)
+            .decorations(true)
+            .effects(WindowEffectsConfig {
+                effects: vec![WindowEffect::Mica],
+                state: None,
+                radius: None,
+                color: None,
+            })
+            .initialization_script(&init_script)
+            .build()
+            .expect("Failed to create main window");
+
             let handle = app.handle().clone();
 
+            // 通过环境变量把端口传给 sidecar
             match app.shell().sidecar("nullgravity-core") {
                 Ok(sidecar) => {
-                    match sidecar.spawn() {
+                    match sidecar
+                        .env("NULLGRAVITY_PORT", port.to_string())
+                        .spawn()
+                    {
                         Ok((mut rx, child)) => {
-                            // 存 PID
                             let pid = child.pid();
                             *handle.state::<SidecarPid>().0.lock().unwrap() = Some(pid);
-                            eprintln!("[NullGravity] Backend sidecar started, PID={}", pid);
+                            eprintln!("[NullGravity] Backend sidecar started, PID={}, PORT={}", pid, port);
 
-                            // child 必须保持存活，存入 app state
-                            // 用 Box::leak 让它永远存活直到进程退出
-                            // （我们通过 PID kill 来结束它，不依赖 drop）
                             Box::leak(Box::new(child));
 
-                            // 持续消费 rx，防止 channel 阻塞导致 sidecar 挂起
                             tauri::async_runtime::spawn(async move {
                                 while let Some(event) = rx.recv().await {
                                     match event {
@@ -88,7 +128,7 @@ pub fn run() {
                 if let Ok(mut guard) = app.state::<SidecarPid>().0.lock() {
                     if let Some(pid) = guard.take() {
                         eprintln!("[NullGravity] Killing sidecar PID={}", pid);
-                        kill_by_pid(pid);
+                        kill_by_pid_nowait(pid);
                     }
                 }
             }
@@ -101,7 +141,7 @@ pub fn run() {
                 if let Ok(mut guard) = app.state::<SidecarPid>().0.lock() {
                     if let Some(pid) = guard.take() {
                         eprintln!("[NullGravity] Exit: Killing sidecar PID={}", pid);
-                        kill_by_pid(pid);
+                        kill_by_pid_nowait(pid);
                     }
                 }
             }

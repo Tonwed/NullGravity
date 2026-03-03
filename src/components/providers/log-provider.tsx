@@ -2,8 +2,8 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
 
-const API_BASE = "http://127.0.0.1:8046/api";
 import { useWebSocket } from "./websocket-provider";
+import { apiFetch, getApiBase } from "@/lib/api";
 
 
 
@@ -43,7 +43,7 @@ export function LogProvider({ children }: { children: ReactNode }) {
     const fetchLogs = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${API_BASE}/logs/?page=1&page_size=100`);
+            const res = await apiFetch(`${getApiBase()}/logs/?page=1&page_size=100`);
             if (res.ok) {
                 const data = await res.json();
                 setLogs(data.items);
@@ -57,7 +57,7 @@ export function LogProvider({ children }: { children: ReactNode }) {
 
     const clear = useCallback(async () => {
         try {
-            await fetch(`${API_BASE}/logs/`, { method: "DELETE" });
+            await apiFetch(`${getApiBase()}/logs/`, { method: "DELETE" });
             fetchLogs();
         } catch { }
     }, [fetchLogs]);

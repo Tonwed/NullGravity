@@ -20,6 +20,7 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useState, useEffect } from "react";
+import { apiFetch, getApiBase } from "@/lib/api";
 
 const navItems = [
     { href: "/", icon: LayoutDashboard, labelKey: "dashboard" as const },
@@ -41,7 +42,7 @@ export function AppSidebar() {
 
     useEffect(() => {
         const fetchCount = () => {
-            fetch("http://127.0.0.1:8046/api/accounts/?page=1&page_size=1")
+            apiFetch(`${getApiBase()}/accounts/?page=1&page_size=1`)
                 .then(r => r.json())
                 .then(data => {
                     if (typeof data.total === "number") setAccountCount(data.total);

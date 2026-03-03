@@ -141,7 +141,8 @@ async def start_google_auth(request: Request, client_type: str = CLIENT_TYPE_ANT
     session_id = secrets.token_urlsafe(16)
 
     # Match official Antigravity: localhost + /oauth-callback path
-    host = "localhost:8046"
+    port = int(os.environ.get("NULLGRAVITY_PORT", "8046"))
+    host = f"localhost:{port}"
     redirect_uri = f"http://{host}/oauth-callback"
 
     params = {

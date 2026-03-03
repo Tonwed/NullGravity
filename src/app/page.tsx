@@ -55,6 +55,7 @@ import {
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { apiFetch, getApiBase } from "@/lib/api";
 
 // --- Types ---
 
@@ -112,7 +113,6 @@ interface DashboardStats {
   recent_events: EventItem[];
 }
 
-const API_BASE = "http://127.0.0.1:8046/api";
 
 // --- Components ---
 
@@ -222,7 +222,7 @@ function AccountItem({ account, t }: { account: AccountSummary, t: any }) {
         <div className="flex items-center gap-3 overflow-hidden">
           <Avatar className="h-8 w-8 border border-border/50">
             <AvatarImage
-              src={account.avatar_cached ? `${API_BASE}/accounts/${account.id}/avatar` : account.avatar_url}
+              src={account.avatar_cached ? `${getApiBase()}/accounts/${account.id}/avatar` : account.avatar_url}
               className="object-cover"
             />
             <AvatarFallback className="text-[10px]">
@@ -300,7 +300,7 @@ export default function DashboardPage() {
 
   const fetchStats = useRef(async () => {
     try {
-      const res = await fetch(`${API_BASE}/dashboard/stats`);
+      const res = await apiFetch(`${getApiBase()}/dashboard/stats`);
       if (!res.ok) throw new Error("Failed to fetch stats");
       const data = await res.json();
       setStats(data);
@@ -320,15 +320,18 @@ export default function DashboardPage() {
       for (let i = 0; i < 30; i++) {
         if (cancelled) return;
         try {
-          const res = await fetch(`${API_BASE}/dashboard/stats`, { signal: AbortSignal.timeout(2000) });
-          if (res.ok) {
-            const data = await res.json();
+          const res = await apiFetch(`${getApiBase()}/dashboard/stats`, { signal: AbortSignal.timeout(2000) });
+          const data = await res.json();
+          console.log("dashboard stats response:", data);
+          if (data && data.total_accounts !== undefined) {
             setStats(data);
             setError(null);
             setLoading(false);
             break;
           }
-        } catch { /* 后端还没就绪 */ }
+        } catch (e) {
+          console.error("fetchStats error:", e);
+        }
         await new Promise(r => setTimeout(r, 500));
       }
       if (!cancelled) {
@@ -584,7 +587,7 @@ export default function DashboardPage() {
                             <div className="flex items-center gap-2 mt-0.5">
                               <div className="flex items-center gap-1.5 max-w-[180px]">
                                 <Avatar className="h-3.5 w-3.5 border border-border/50">
-                                  <AvatarImage src={`http://127.0.0.1:8046${evt.account_avatar || ""}`} />
+                                  <AvatarImage src={`${getApiBase().replace("/api", "")}${evt.account_avatar || ""}`} />
                                   <AvatarFallback className="text-[8px] bg-muted text-muted-foreground">?</AvatarFallback>
                                 </Avatar>
                                 <span className="truncate text-[11px] text-muted-foreground">{evt.account_email}</span>

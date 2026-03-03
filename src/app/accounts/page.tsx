@@ -63,7 +63,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-const API_BASE = "http://127.0.0.1:8046/api";
+import { apiFetch, getApiBase } from "@/lib/api";
 
 interface AccountItem {
     id: string;
@@ -258,7 +258,7 @@ function AccountRow({
                         {account.avatar_url ? (
                             <img
                                 src={account.avatar_cached
-                                    ? `${API_BASE}/accounts/${account.id}/avatar`
+                                    ? `${getApiBase()}/accounts/${account.id}/avatar`
                                     : account.avatar_url
                                 }
                                 alt={account.display_name || account.email}
@@ -572,7 +572,7 @@ export default function AccountsPage() {
             const params = new URLSearchParams({ page: "1", page_size: "100" });
             params.append("sort_order", sortOrder);
             if (search) params.set("search", search);
-            const res = await fetch(`${API_BASE}/accounts/?${params.toString()}`, {
+            const res = await apiFetch(`${getApiBase()}/accounts/?${params.toString()}`, {
                 cache: 'no-store',
                 headers: {
                     'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -665,7 +665,7 @@ export default function AccountsPage() {
     const confirmDelete = async () => {
         if (!accountToDelete) return;
         try {
-            const res = await fetch(`${API_BASE}/accounts/${accountToDelete}`, { method: "DELETE" });
+            const res = await apiFetch(`${getApiBase()}/accounts/${accountToDelete}`, { method: "DELETE" });
             if (res.ok) {
                 fetchAccounts();
             }
@@ -679,11 +679,11 @@ export default function AccountsPage() {
         setRefreshingIds((prev) => new Set(prev).add(id));
         try {
             // 1. Refresh all credential tokens (gemini_cli + antigravity)
-            await fetch(`${API_BASE}/auth/google/refresh/${id}`, { method: "POST" });
+            await apiFetch(`${getApiBase()}/auth/google/refresh/${id}`, { method: "POST" });
             // 2. Refresh userinfo (display_name, avatar)
-            await fetch(`${API_BASE}/auth/google/userinfo/${id}`, { method: "POST" });
+            await apiFetch(`${getApiBase()}/auth/google/userinfo/${id}`, { method: "POST" });
             // 3. Run sync (tier, quota, models) — handles both clients
-            await fetch(`${API_BASE}/auth/google/setup/${id}`, { method: "POST" });
+            await apiFetch(`${getApiBase()}/auth/google/setup/${id}`, { method: "POST" });
             // 4. Reload the account list to show updated info
             await fetchAccounts();
         } catch {
@@ -699,7 +699,7 @@ export default function AccountsPage() {
 
     const handleLaunch = async (id: string) => {
         try {
-            await fetch(`${API_BASE}/accounts/${id}/launch`, { method: "POST" });
+            await apiFetch(`${getApiBase()}/accounts/${id}/launch`, { method: "POST" });
         } catch (e) {
             console.error("Failed to launch", e);
             // Optionally show alert or toast here

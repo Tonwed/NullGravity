@@ -79,7 +79,6 @@ This project is organized as a workspace. Each component can be run independentl
     npm run tauri dev
     ```
 
-This project references [lbjlaq/Antigravity-Manager](https://github.com/lbjlaq/Antigravity-Manager).
 ---
 
 ## 📄 License

@@ -1,9 +1,9 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useMemo } from "react";
+import { getApiBase } from "@/lib/api";
 
-const API_BASE = "http://127.0.0.1:8046/api";
-const WS_URL = API_BASE.replace("http", "ws") + "/ws";
+const WS_URL = getApiBase().replace("http", "ws") + "/ws";
 
 interface WebSocketContextType {
     lastMessage: any;
