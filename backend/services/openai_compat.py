@@ -258,6 +258,24 @@ async def chat_completions(request: Request):
     # Build Gemini request
     gemini_contents, system_instruction = _convert_messages_to_gemini(messages)
     gemini_body = {"contents": gemini_contents}
+    
+    # Debug: log if image data is present
+    has_image = any(
+        any(part.get("inlineData") or part.get("fileData") for part in content.get("parts", []))
+        for content in gemini_contents
+    )
+    if has_image:
+        logger.info(f"[IMAGE] Request contains image data, contents: {len(gemini_contents)} messages")
+        for i, content in enumerate(gemini_contents):
+            parts_summary = []
+            for part in content.get("parts", []):
+                if "text" in part:
+                    parts_summary.append(f"text({len(part['text'])} chars)")
+                elif "inlineData" in part:
+                    parts_summary.append(f"inlineData({part['inlineData']['mimeType']}, {len(part['inlineData']['data'])} bytes)")
+                elif "fileData" in part:
+                    parts_summary.append(f"fileData({part['fileData']['fileUri']})")
+            logger.info(f"[IMAGE] Message {i}: role={content['role']}, parts=[{', '.join(parts_summary)}]")
 
     # System instruction from messages
     if system_instruction:
@@ -779,6 +797,14 @@ async def anthropic_messages(request: Request):
     # Convert Anthropic messages to Gemini contents
     gemini_contents = _convert_anthropic_messages_to_gemini(messages)
     gemini_body: dict = {"contents": gemini_contents}
+    
+    # Debug: log if image data is present
+    has_image = any(
+        any(part.get("inlineData") or part.get("fileData") for part in content.get("parts", []))
+        for content in gemini_contents
+    )
+    if has_image:
+        logger.info(f"[IMAGE-ANTHROPIC] Request contains image data")
 
     # Convert and forward tools
     tools = body.get("tools")

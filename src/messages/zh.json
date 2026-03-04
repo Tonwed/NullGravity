@@ -320,7 +320,7 @@
         "starting": "启动中...",
         "stopping": "停止中...",
         "port": "端口",
-        "portDesc": "Antigravity 连接的本地代理端口",
+        "portDesc": "",
         "upstream": "上游端点",
         "upstreamDaily": "Daily (默认)",
         "upstreamProd": "Production (GCP ToS)",
