@@ -421,6 +421,24 @@ def _convert_messages_to_gemini(messages: list[dict]) -> tuple[list[dict], str |
             for part in content:
                 if part.get("type") == "text":
                     parts.append({"text": part["text"]})
+                elif part.get("type") == "image_url":
+                    image_url = part["image_url"]["url"]
+                    if image_url.startswith("data:"):
+                        # Base64 inline image: data:image/png;base64,iVBORw0KG...
+                        try:
+                            header, base64_data = image_url.split(",", 1)
+                            mime_type = header.split(":")[1].split(";")[0]
+                            parts.append({
+                                "inlineData": {
+                                    "mimeType": mime_type,
+                                    "data": base64_data
+                                }
+                            })
+                        except Exception as e:
+                            logger.warning(f"Failed to parse base64 image: {e}")
+                    else:
+                        # URL image - Gemini fileData (requires public URL or GCS)
+                        parts.append({"fileData": {"fileUri": image_url}})
             if parts:
                 contents.append({"role": gemini_role, "parts": parts})
 
@@ -901,6 +919,19 @@ def _convert_anthropic_messages_to_gemini(messages: list[dict]) -> list[dict]:
                     text = block.get("text", "")
                     if text:
                         parts.append({"text": text})
+
+                elif block_type == "image":
+                    # Anthropic image: {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "..."}}
+                    source = block.get("source", {})
+                    if source.get("type") == "base64":
+                        parts.append({
+                            "inlineData": {
+                                "mimeType": source.get("media_type", "image/png"),
+                                "data": source.get("data", "")
+                            }
+                        })
+                    elif source.get("type") == "url":
+                        parts.append({"fileData": {"fileUri": source.get("url", "")}})
 
                 elif block_type == "tool_use":
                     # Drop tool_use from history — model already executed it, result follows.
