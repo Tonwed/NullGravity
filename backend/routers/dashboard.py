@@ -14,6 +14,7 @@ from models.credential import OAuthCredential
 from models.log import Log
 from models.event import Event
 import utils.proxy as proxy_utils
+from services.proxy_logger import get_proxy_logger
 
 
 router = APIRouter()
@@ -220,4 +221,80 @@ async def get_dashboard_stats(
         backend_uptime_seconds=round(uptime_seconds, 0),
         accounts=account_summaries,
         recent_events=recent_events,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Token Statistics
+# ---------------------------------------------------------------------------
+
+class TokenStats(BaseModel):
+    total_requests: int = 0
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    total_tokens: int = 0
+    by_model: list[dict] = []
+    by_account: list[dict] = []
+    top_models: list[dict] = []
+
+
+@router.get("/token-stats", response_model=TokenStats)
+async def get_token_stats(time_range: str = "24h"):
+    """Get token usage statistics from proxy logs."""
+    logger = get_proxy_logger()
+    logs = logger.get_logs(limit=500)
+    
+    # Filter by time range
+    now = datetime.now(timezone.utc).timestamp()
+    if time_range == "24h":
+        cutoff = now - 86400
+    elif time_range == "7d":
+        cutoff = now - 604800
+    elif time_range == "30d":
+        cutoff = now - 2592000
+    else:
+        cutoff = 0
+    
+    filtered = [log for log in logs if log["timestamp"] >= cutoff]
+    
+    # Aggregate stats
+    total_requests = len(filtered)
+    total_input = sum(log.get("input_tokens", 0) for log in filtered)
+    total_output = sum(log.get("output_tokens", 0) for log in filtered)
+    
+    # By model
+    model_stats = {}
+    for log in filtered:
+        model = log.get("model", "unknown")
+        if model not in model_stats:
+            model_stats[model] = {"model": model, "requests": 0, "input_tokens": 0, "output_tokens": 0}
+        model_stats[model]["requests"] += 1
+        model_stats[model]["input_tokens"] += log.get("input_tokens", 0)
+        model_stats[model]["output_tokens"] += log.get("output_tokens", 0)
+    
+    by_model = sorted(model_stats.values(), key=lambda x: x["requests"], reverse=True)
+    
+    # By account
+    account_stats = {}
+    for log in filtered:
+        email = log.get("account_email", "unknown")
+        if email not in account_stats:
+            account_stats[email] = {"email": email, "requests": 0, "input_tokens": 0, "output_tokens": 0}
+        account_stats[email]["requests"] += 1
+        account_stats[email]["input_tokens"] += log.get("input_tokens", 0)
+        account_stats[email]["output_tokens"] += log.get("output_tokens", 0)
+    
+    by_account = sorted(account_stats.values(), key=lambda x: x["requests"], reverse=True)[:10]
+    
+    # Top models
+    top_models = [{"model": m["model"], "count": m["requests"]} for m in by_model[:5]]
+    
+    return TokenStats(
+        total_requests=total_requests,
+        total_input_tokens=total_input,
+        total_output_tokens=total_output,
+        total_tokens=total_input + total_output,
+        by_model=by_model,
+        by_account=by_account,
+        top_models=top_models,
     )

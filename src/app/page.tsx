@@ -22,6 +22,7 @@ import {
   Users,
   Zap
 } from "lucide-react";
+import { TokenStatsView } from "@/components/dashboard/token-stats-view";
 
 function getEventIcon(type: string) {
   switch (type) {
@@ -46,6 +47,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Tooltip,
   TooltipContent,
@@ -294,7 +296,9 @@ function UptimeDisplay({ seconds, t }: { seconds: number, t: any }) {
 
 export default function DashboardPage() {
   const t = useTranslations();
+  const [activeTab, setActiveTab] = useState<"overview" | "tokens">("overview");
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [tokenStats, setTokenStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const tRef = useRef(t);
@@ -313,6 +317,17 @@ export default function DashboardPage() {
       setError(tRef.current("common.error"));
     } finally {
       setLoading(false);
+    }
+  }).current;
+
+  const fetchTokenStats = useRef(async () => {
+    try {
+      const res = await apiFetch(`${getApiBase()}/dashboard/token-stats?time_range=24h`);
+      if (!res.ok) throw new Error("Failed to fetch token stats");
+      const data = await res.json();
+      setTokenStats(data);
+    } catch (err) {
+      console.error(err);
     }
   }).current;
 
@@ -352,6 +367,12 @@ export default function DashboardPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (activeTab === "tokens" && !tokenStats) {
+      fetchTokenStats();
+    }
+  }, [activeTab, tokenStats, fetchTokenStats]);
+
   if (loading && !stats) {
     return (
       <div className="h-full w-full flex items-center justify-center min-h-[400px]">
@@ -389,6 +410,12 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center space-x-2">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "overview" | "tokens")}>
+            <TabsList>
+              <TabsTrigger value="overview">系统概览</TabsTrigger>
+              <TabsTrigger value="tokens">Token 统计</TabsTrigger>
+            </TabsList>
+          </Tabs>
           <Button onClick={fetchStats} variant="ghost" size="sm" className="h-8 w-8 p-0">
             <RefreshCw className={cn("h-4 w-4 text-muted-foreground", loading && "animate-spin")} />
           </Button>
@@ -401,6 +428,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Conditional Content Based on Active Tab */}
+      {activeTab === "tokens" ? (
+        <TokenStatsView data={tokenStats} />
+      ) : (
+        <>
       {/* Top Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -613,6 +645,8 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }
