@@ -1,8 +1,7 @@
 """
 Proxy-specific request logger.
 
-Stores API proxy request logs in an in-memory ring buffer.
-These are separate from the main backend request logs (services/logger.py).
+Stores API proxy request logs in memory (ring buffer) and database.
 """
 
 import time
@@ -10,7 +9,7 @@ import asyncio
 from collections import deque
 from dataclasses import dataclass, field, asdict
 from typing import Any
-from typing import Any
+from datetime import datetime, timezone
 
 
 @dataclass
@@ -95,7 +94,40 @@ class ProxyLogger:
                 client_ip=client_ip,
             )
             self._entries.append(entry)
+            
+            # 异步写入数据库
+            asyncio.create_task(self._save_to_db(entry))
+            
             return entry
+    
+    async def _save_to_db(self, entry: ProxyLogEntry):
+        """异步保存日志到数据库"""
+        try:
+            from database.connection import get_session
+            from models.proxy_log import ProxyLog
+            
+            async for session in get_session():
+                db_log = ProxyLog(
+                    timestamp=datetime.fromtimestamp(entry.timestamp, tz=timezone.utc),
+                    method=entry.method,
+                    path=entry.path,
+                    api_format=entry.api_format,
+                    model=entry.model,
+                    original_model=entry.original_model or None,
+                    stream=entry.stream,
+                    status_code=entry.status_code,
+                    duration_ms=entry.duration_ms,
+                    input_tokens=entry.input_tokens,
+                    output_tokens=entry.output_tokens,
+                    error=entry.error or None,
+                    client_ip=entry.client_ip or None,
+                    account_id=entry.account_id or None,
+                )
+                session.add(db_log)
+                await session.commit()
+                break
+        except Exception as e:
+            print(f"Failed to save proxy log to DB: {e}")
 
     def get_logs(self, limit: int = 100, offset: int = 0) -> list[dict]:
         """Get logs in reverse chronological order."""

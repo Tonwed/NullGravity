@@ -17,6 +17,7 @@ from routers import accounts, settings, auth, logs, dashboard, api_proxy, api_to
 from routers.auth import google_callback as _oauth_callback_handler
 from models.log import Log
 from models.event import Event
+from models.proxy_log import ProxyLog
 from utils.proxy import load_proxy_from_db, start_proxy_monitor
 from services.auto_refresh import start_auto_refresh_scheduler
 from services.event import log_event

@@ -48,6 +48,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
   TooltipContent,
@@ -297,8 +298,10 @@ function UptimeDisplay({ seconds, t }: { seconds: number, t: any }) {
 export default function DashboardPage() {
   const t = useTranslations();
   const [activeTab, setActiveTab] = useState<"overview" | "tokens">("overview");
+  const [timeRange, setTimeRange] = useState<"24h" | "7d" | "30d">("24h");
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [tokenStats, setTokenStats] = useState<any>(null);
+  const [apiProxyRunning, setApiProxyRunning] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const tRef = useRef(t);
@@ -320,9 +323,9 @@ export default function DashboardPage() {
     }
   }).current;
 
-  const fetchTokenStats = useRef(async () => {
+  const fetchTokenStats = useRef(async (timeRange: string = "24h") => {
     try {
-      const res = await apiFetch(`${getApiBase()}/dashboard/token-stats?time_range=24h`);
+      const res = await apiFetch(`${getApiBase()}/dashboard/token-stats?time_range=${timeRange}`);
       if (!res.ok) throw new Error("Failed to fetch token stats");
       const data = await res.json();
       setTokenStats(data);
@@ -330,6 +333,34 @@ export default function DashboardPage() {
       console.error(err);
     }
   }).current;
+
+  const handleTimeRangeChange = (range: string) => {
+    fetchTokenStats(range);
+  };
+
+  const fetchApiProxyStatus = async () => {
+    try {
+      const res = await apiFetch(`${getApiBase()}/api-proxy/status`);
+      if (res.ok) {
+        const data = await res.json();
+        setApiProxyRunning(data.running);
+      }
+    } catch (err) {
+      console.error("Failed to fetch API proxy status:", err);
+    }
+  };
+
+  const toggleApiProxy = async () => {
+    try {
+      const endpoint = apiProxyRunning ? "/api-proxy/stop" : "/api-proxy/start";
+      const res = await apiFetch(`${getApiBase()}${endpoint}`, { method: "POST" });
+      if (res.ok) {
+        await fetchApiProxyStatus();
+      }
+    } catch (err) {
+      console.error("Failed to toggle API proxy:", err);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -372,6 +403,12 @@ export default function DashboardPage() {
       fetchTokenStats();
     }
   }, [activeTab, tokenStats, fetchTokenStats]);
+
+  useEffect(() => {
+    fetchApiProxyStatus();
+    const interval = setInterval(fetchApiProxyStatus, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   if (loading && !stats) {
     return (
@@ -416,6 +453,35 @@ export default function DashboardPage() {
               <TabsTrigger value="tokens">Token 统计</TabsTrigger>
             </TabsList>
           </Tabs>
+          <div className={cn(
+            "flex gap-1 overflow-hidden transition-all duration-300 ease-in-out",
+            activeTab === "tokens" ? "max-w-[200px] opacity-100" : "max-w-0 opacity-0"
+          )}>
+            <Button 
+              variant={timeRange === "24h" ? "secondary" : "ghost"} 
+              size="sm" 
+              className="h-8 text-xs whitespace-nowrap"
+              onClick={() => { setTimeRange("24h"); handleTimeRangeChange("24h"); }}
+            >
+              24小时
+            </Button>
+            <Button 
+              variant={timeRange === "7d" ? "secondary" : "ghost"} 
+              size="sm" 
+              className="h-8 text-xs whitespace-nowrap"
+              onClick={() => { setTimeRange("7d"); handleTimeRangeChange("7d"); }}
+            >
+              7天
+            </Button>
+            <Button 
+              variant={timeRange === "30d" ? "secondary" : "ghost"} 
+              size="sm" 
+              className="h-8 text-xs whitespace-nowrap"
+              onClick={() => { setTimeRange("30d"); handleTimeRangeChange("30d"); }}
+            >
+              30天
+            </Button>
+          </div>
           <Button onClick={fetchStats} variant="ghost" size="sm" className="h-8 w-8 p-0">
             <RefreshCw className={cn("h-4 w-4 text-muted-foreground", loading && "animate-spin")} />
           </Button>
@@ -430,9 +496,9 @@ export default function DashboardPage() {
 
       {/* Conditional Content Based on Active Tab */}
       {activeTab === "tokens" ? (
-        <TokenStatsView data={tokenStats} />
+        <TokenStatsView data={tokenStats} key="tokens" />
       ) : (
-        <>
+        <div key="overview" className="animate-in fade-in duration-300">
       {/* Top Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
@@ -462,7 +528,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7 mt-6">
 
         {/* Left Column: Accounts Quota */}
         <div className="lg:col-span-4 space-y-4">
@@ -503,6 +569,27 @@ export default function DashboardPage() {
               {t("dashboard.system")}
             </h3>
             <div className="grid gap-3">
+              {/* API Proxy Item */}
+              <div className="rounded-lg border border-border border-b-border/80 bg-card shadow-[0_2px_4px_-2px_rgba(0,0,0,0.08)] dark:shadow-none px-4 py-3 flex items-center justify-between transition-colors hover:bg-accent/5">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "flex items-center justify-center w-8 h-8 rounded-full border",
+                    apiProxyRunning
+                      ? "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400"
+                      : "bg-muted/50 border-border/50 text-muted-foreground"
+                  )}>
+                    <Zap className="h-4 w-4" />
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[13px] font-medium leading-none">API 反代</span>
+                    <span className="text-[11px] text-muted-foreground font-mono">
+                      {apiProxyRunning ? "运行中" : "已停止"}
+                    </span>
+                  </div>
+                </div>
+                <Switch checked={apiProxyRunning} onCheckedChange={toggleApiProxy} />
+              </div>
+
               {/* Proxy Item */}
               <div className="rounded-lg border border-border border-b-border/80 bg-card shadow-[0_2px_4px_-2px_rgba(0,0,0,0.08)] dark:shadow-none px-4 py-3 flex items-center justify-between transition-colors hover:bg-accent/5">
                 <div className="flex items-center gap-3">
@@ -645,7 +732,7 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
-      </>
+      </div>
       )}
     </div>
   );

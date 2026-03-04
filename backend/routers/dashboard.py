@@ -239,54 +239,53 @@ class TokenStats(BaseModel):
 
 
 @router.get("/token-stats", response_model=TokenStats)
-async def get_token_stats(time_range: str = "24h"):
-    """Get token usage statistics from proxy logs."""
-    logger = get_proxy_logger()
-    logs = logger.get_logs(limit=500)
+async def get_token_stats(time_range: str = "24h", session: AsyncSession = Depends(get_session)):
+    """Get token usage statistics from database."""
+    from models.proxy_log import ProxyLog
+    from datetime import timedelta
     
-    # Filter by time range
-    now = datetime.now(timezone.utc).timestamp()
+    now = datetime.now(timezone.utc)
     if time_range == "24h":
-        cutoff = now - 86400
+        cutoff = now - timedelta(hours=24)
     elif time_range == "7d":
-        cutoff = now - 604800
+        cutoff = now - timedelta(days=7)
     elif time_range == "30d":
-        cutoff = now - 2592000
+        cutoff = now - timedelta(days=30)
     else:
-        cutoff = 0
+        cutoff = now - timedelta(hours=24)
     
-    filtered = [log for log in logs if log["timestamp"] >= cutoff]
+    # 查询数据库
+    result = await session.execute(
+        select(ProxyLog).where(ProxyLog.timestamp >= cutoff)
+    )
+    logs = result.scalars().all()
     
-    # Aggregate stats
-    total_requests = len(filtered)
-    total_input = sum(log.get("input_tokens", 0) for log in filtered)
-    total_output = sum(log.get("output_tokens", 0) for log in filtered)
+    total_requests = len(logs)
+    total_input = sum(log.input_tokens for log in logs)
+    total_output = sum(log.output_tokens for log in logs)
     
-    # By model
+    # 按模型统计
     model_stats = {}
-    for log in filtered:
-        model = log.get("model", "unknown")
-        if model not in model_stats:
-            model_stats[model] = {"model": model, "requests": 0, "input_tokens": 0, "output_tokens": 0}
-        model_stats[model]["requests"] += 1
-        model_stats[model]["input_tokens"] += log.get("input_tokens", 0)
-        model_stats[model]["output_tokens"] += log.get("output_tokens", 0)
+    for log in logs:
+        if log.model not in model_stats:
+            model_stats[log.model] = {"model": log.model, "requests": 0, "input_tokens": 0, "output_tokens": 0}
+        model_stats[log.model]["requests"] += 1
+        model_stats[log.model]["input_tokens"] += log.input_tokens
+        model_stats[log.model]["output_tokens"] += log.output_tokens
     
     by_model = sorted(model_stats.values(), key=lambda x: x["requests"], reverse=True)
     
-    # By account
+    # 按账号统计
     account_stats = {}
-    for log in filtered:
-        email = log.get("account_email", "unknown")
+    for log in logs:
+        email = log.account.email if log.account else "unknown"
         if email not in account_stats:
             account_stats[email] = {"email": email, "requests": 0, "input_tokens": 0, "output_tokens": 0}
         account_stats[email]["requests"] += 1
-        account_stats[email]["input_tokens"] += log.get("input_tokens", 0)
-        account_stats[email]["output_tokens"] += log.get("output_tokens", 0)
+        account_stats[email]["input_tokens"] += log.input_tokens
+        account_stats[email]["output_tokens"] += log.output_tokens
     
     by_account = sorted(account_stats.values(), key=lambda x: x["requests"], reverse=True)[:10]
-    
-    # Top models
     top_models = [{"model": m["model"], "count": m["requests"]} for m in by_model[:5]]
     
     return TokenStats(
