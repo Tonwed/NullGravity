@@ -27,3 +27,6 @@ class ProxyLog(Base):
     
     account_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True)
     account = relationship("Account")
+    
+    api_token_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("api_tokens.id", ondelete="SET NULL"), nullable=True)
+    api_token = relationship("ApiToken")

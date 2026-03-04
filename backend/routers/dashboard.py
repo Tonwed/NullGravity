@@ -236,13 +236,21 @@ class TokenStats(BaseModel):
     by_model: list[dict] = []
     by_account: list[dict] = []
     top_models: list[dict] = []
+    time_series: list[dict] = []
+    series_keys: list[str] = []  # 新增：系列名称列表
 
 
 @router.get("/token-stats", response_model=TokenStats)
-async def get_token_stats(time_range: str = "24h", session: AsyncSession = Depends(get_session)):
+async def get_token_stats(
+    time_range: str = "24h", 
+    group_by: str = "total",  # total, model, api_token
+    session: AsyncSession = Depends(get_session)
+):
     """Get token usage statistics from database."""
     from models.proxy_log import ProxyLog
     from datetime import timedelta
+    from sqlalchemy.orm import selectinload
+    from sqlalchemy import select
     
     now = datetime.now(timezone.utc)
     if time_range == "24h":
@@ -254,9 +262,9 @@ async def get_token_stats(time_range: str = "24h", session: AsyncSession = Depen
     else:
         cutoff = now - timedelta(hours=24)
     
-    # 查询数据库
+    # 查询数据库，预加载 account 关系
     result = await session.execute(
-        select(ProxyLog).where(ProxyLog.timestamp >= cutoff)
+        select(ProxyLog).options(selectinload(ProxyLog.account)).where(ProxyLog.timestamp >= cutoff)
     )
     logs = result.scalars().all()
     
@@ -285,8 +293,128 @@ async def get_token_stats(time_range: str = "24h", session: AsyncSession = Depen
         account_stats[email]["input_tokens"] += log.input_tokens
         account_stats[email]["output_tokens"] += log.output_tokens
     
+    # 按 API Token 统计
+    token_stats = {}
+    for log in logs:
+        if log.api_token_id:
+            if log.api_token_id not in token_stats:
+                token_stats[log.api_token_id] = {"token_id": log.api_token_id, "requests": 0, "input_tokens": 0, "output_tokens": 0}
+            token_stats[log.api_token_id]["requests"] += 1
+            token_stats[log.api_token_id]["input_tokens"] += log.input_tokens
+            token_stats[log.api_token_id]["output_tokens"] += log.output_tokens
+    
+    by_token = sorted(token_stats.values(), key=lambda x: x["requests"], reverse=True)[:10]
+    
     by_account = sorted(account_stats.values(), key=lambda x: x["requests"], reverse=True)[:10]
     top_models = [{"model": m["model"], "count": m["requests"]} for m in by_model[:5]]
+    
+    # 生成时间序列数据（使用北京时间 UTC+8）
+    beijing_tz = timezone(timedelta(hours=8))
+    time_series = []
+    series_keys = []
+    
+    if group_by == "model":
+        # 按模型分组，只显示有数据的模型
+        top_models_list = [m["model"] for m in by_model[:10]]
+        series_keys = top_models_list
+        
+        if time_range == "24h":
+            temp_series = []
+            for i in range(24):
+                hour_start = cutoff + timedelta(hours=i)
+                hour_end = hour_start + timedelta(hours=1)
+                beijing_time = hour_start.astimezone(beijing_tz)
+                data_point = {"time": beijing_time.strftime("%H:00"), "hour": beijing_time.hour}
+                for model in top_models_list:
+                    model_logs = [log for log in logs if hour_start <= log.timestamp.replace(tzinfo=timezone.utc) < hour_end and log.model == model]
+                    data_point[model] = sum(log.input_tokens + log.output_tokens for log in model_logs)
+                temp_series.append(data_point)
+            temp_series.sort(key=lambda x: (x["hour"] - 6) % 24)
+            time_series = [{k: v for k, v in item.items() if k != "hour"} for item in temp_series]
+    elif group_by == "user":
+        # 按 API Token 分组
+        if not by_token:
+            # 如果没有 token 数据，返回空
+            series_keys = []
+            time_series = []
+        else:
+            series_keys = [t["token_id"] for t in by_token]
+            
+            # 获取 token 名称映射
+            from models.api_token import ApiToken
+            token_result = await session.execute(select(ApiToken).where(ApiToken.id.in_(series_keys)))
+            tokens = {t.id: t.name for t in token_result.scalars().all()}
+            
+            # 使用 token 名称作为 series_keys
+            series_keys = [tokens.get(tid, tid[:8]) for tid in series_keys]
+            token_id_to_name = {tid: tokens.get(tid, tid[:8]) for tid in [t["token_id"] for t in by_token]}
+            
+            if time_range == "24h":
+                temp_series = []
+                for i in range(24):
+                    hour_start = cutoff + timedelta(hours=i)
+                    hour_end = hour_start + timedelta(hours=1)
+                    beijing_time = hour_start.astimezone(beijing_tz)
+                    data_point = {"time": beijing_time.strftime("%H:00"), "hour": beijing_time.hour}
+                    for token_id, token_name in token_id_to_name.items():
+                        token_logs = [log for log in logs if hour_start <= log.timestamp.replace(tzinfo=timezone.utc) < hour_end and log.api_token_id == token_id]
+                        data_point[token_name] = sum(log.input_tokens + log.output_tokens for log in token_logs)
+                    temp_series.append(data_point)
+                temp_series.sort(key=lambda x: (x["hour"] - 6) % 24)
+                time_series = [{k: v for k, v in item.items() if k != "hour"} for item in temp_series]
+    elif group_by == "account":
+        # 按账号分组
+        top_accounts = by_account[:10]
+        series_keys = [acc["email"] for acc in top_accounts]
+        
+        if time_range == "24h":
+            temp_series = []
+            for i in range(24):
+                hour_start = cutoff + timedelta(hours=i)
+                hour_end = hour_start + timedelta(hours=1)
+                beijing_time = hour_start.astimezone(beijing_tz)
+                data_point = {"time": beijing_time.strftime("%H:00"), "hour": beijing_time.hour}
+                for email in series_keys:
+                    account_logs = [log for log in logs if hour_start <= log.timestamp.replace(tzinfo=timezone.utc) < hour_end and (log.account.email if log.account else "unknown") == email]
+                    data_point[email] = sum(log.input_tokens + log.output_tokens for log in account_logs)
+                temp_series.append(data_point)
+            temp_series.sort(key=lambda x: (x["hour"] - 6) % 24)
+            time_series = [{k: v for k, v in item.items() if k != "hour"} for item in temp_series]
+    else:
+        # 总体（不分组）
+        series_keys = ["tokens"]
+        if time_range == "24h":
+            temp_series = []
+            for i in range(24):
+                hour_start = cutoff + timedelta(hours=i)
+                hour_end = hour_start + timedelta(hours=1)
+                hour_logs = [log for log in logs if hour_start <= log.timestamp.replace(tzinfo=timezone.utc) < hour_end]
+                beijing_time = hour_start.astimezone(beijing_tz)
+                temp_series.append({
+                    "time": beijing_time.strftime("%H:00"),
+                    "hour": beijing_time.hour,
+                    "tokens": sum(log.input_tokens + log.output_tokens for log in hour_logs) if hour_logs else 0,
+                })
+            temp_series.sort(key=lambda x: (x["hour"] - 6) % 24)
+            time_series = [{"time": item["time"], "tokens": item["tokens"]} for item in temp_series]
+        elif time_range == "7d":
+            for i in range(7):
+                day_start = cutoff + timedelta(days=i)
+                day_end = day_start + timedelta(days=1)
+                day_logs = [log for log in logs if day_start <= log.timestamp.replace(tzinfo=timezone.utc) < day_end]
+                time_series.append({
+                    "time": day_start.astimezone(beijing_tz).strftime("%m/%d"),
+                    "tokens": sum(log.input_tokens + log.output_tokens for log in day_logs) if day_logs else 0,
+                })
+        else:  # 30d
+            for i in range(30):
+                day_start = cutoff + timedelta(days=i)
+                day_end = day_start + timedelta(days=1)
+                day_logs = [log for log in logs if day_start <= log.timestamp.replace(tzinfo=timezone.utc) < day_end]
+                time_series.append({
+                    "time": day_start.astimezone(beijing_tz).strftime("%m/%d"),
+                    "tokens": sum(log.input_tokens + log.output_tokens for log in day_logs) if day_logs else 0,
+                })
     
     return TokenStats(
         total_requests=total_requests,
@@ -296,4 +424,6 @@ async def get_token_stats(time_range: str = "24h", session: AsyncSession = Depen
         by_model=by_model,
         by_account=by_account,
         top_models=top_models,
+        time_series=time_series,
+        series_keys=series_keys,
     )

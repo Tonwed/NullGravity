@@ -72,6 +72,7 @@ class ProxyLogger:
         error: str = "",
         client_ip: str = "",
         original_model: str = "",
+        api_token_id: str = "",
     ) -> ProxyLogEntry:
         with self._lock:
             self._counter += 1
@@ -122,6 +123,7 @@ class ProxyLogger:
                     error=entry.error or None,
                     client_ip=entry.client_ip or None,
                     account_id=entry.account_id or None,
+                    api_token_id=getattr(entry, 'api_token_id', None),
                 )
                 session.add(db_log)
                 await session.commit()

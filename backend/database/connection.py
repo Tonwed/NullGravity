@@ -77,6 +77,15 @@ async def init_db():
                     sqlalchemy.text(f"ALTER TABLE oauth_credentials ADD COLUMN {col_name} {col_type}")
                 )
 
+        # Auto-migrate: proxy_logs 新列
+        result3 = await conn.execute(sqlalchemy.text("PRAGMA table_info(proxy_logs)"))
+        proxy_columns = {row[1] for row in result3.fetchall()}
+        
+        if "api_token_id" not in proxy_columns:
+            await conn.execute(
+                sqlalchemy.text("ALTER TABLE proxy_logs ADD COLUMN api_token_id VARCHAR(36)")
+            )
+
         # Auto-migrate: request_logs account_id
         result3 = await conn.execute(sqlalchemy.text("PRAGMA table_info(request_logs)"))
         log_columns = {row[1] for row in result3.fetchall()}

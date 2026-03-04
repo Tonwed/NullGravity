@@ -323,9 +323,9 @@ export default function DashboardPage() {
     }
   }).current;
 
-  const fetchTokenStats = useRef(async (timeRange: string = "24h") => {
+  const fetchTokenStats = useRef(async (timeRange: string = "24h", groupBy: string = "total") => {
     try {
-      const res = await apiFetch(`${getApiBase()}/dashboard/token-stats?time_range=${timeRange}`);
+      const res = await apiFetch(`${getApiBase()}/dashboard/token-stats?time_range=${timeRange}&group_by=${groupBy}`);
       if (!res.ok) throw new Error("Failed to fetch token stats");
       const data = await res.json();
       setTokenStats(data);
@@ -335,7 +335,11 @@ export default function DashboardPage() {
   }).current;
 
   const handleTimeRangeChange = (range: string) => {
-    fetchTokenStats(range);
+    fetchTokenStats(range, "total");
+  };
+
+  const handleGroupByChange = (groupBy: string) => {
+    fetchTokenStats(timeRange, groupBy);
   };
 
   const fetchApiProxyStatus = async () => {
@@ -496,7 +500,7 @@ export default function DashboardPage() {
 
       {/* Conditional Content Based on Active Tab */}
       {activeTab === "tokens" ? (
-        <TokenStatsView data={tokenStats} key="tokens" />
+        <TokenStatsView data={tokenStats} onGroupByChange={handleGroupByChange} key="tokens" />
       ) : (
         <div key="overview" className="animate-in fade-in duration-300">
       {/* Top Stats Cards */}
