@@ -175,7 +175,7 @@ function QuotaProgressBar({ fraction, label, subLabel }: { fraction: number, lab
 function AccountItem({ account, t }: { account: AccountSummary, t: any }) {
   const models = [...(account.gemini_models || []), ...(account.antigravity_models || [])];
   const uniqueModels = Array.from(new Map(models.map(m => [m.name, m])).values());
-  
+
   // Debug: 打印实际模型名称
   console.log('[Dashboard] Account:', account.email, 'Models:', uniqueModels.map(m => m.name));
 
@@ -232,6 +232,9 @@ function AccountItem({ account, t }: { account: AccountSummary, t: any }) {
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-medium text-sm truncate" title={account.email}>{account.display_name || account.email}</span>
+              {account.status_reason === "TOS_VIOLATION" && (
+                <Badge variant="destructive" className="h-4 px-1 text-[10px] rounded-[4px]">TOS Banned</Badge>
+              )}
               {account.status_reason === "VALIDATION_REQUIRED" && (
                 <TooltipProvider>
                   <Tooltip>
@@ -242,7 +245,7 @@ function AccountItem({ account, t }: { account: AccountSummary, t: any }) {
                   </Tooltip>
                 </TooltipProvider>
               )}
-              {account.is_forbidden && (
+              {account.is_forbidden && account.status_reason !== "TOS_VIOLATION" && (
                 <Badge variant="destructive" className="h-4 px-1 text-[10px] rounded-[4px]">{t("dashboard.forbidden")}</Badge>
               )}
             </div>

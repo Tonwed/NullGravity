@@ -102,6 +102,7 @@ interface AccountItem {
 }
 
 function getDisplayStatus(account: AccountItem): string {
+    if (account.status_reason === "TOS_VIOLATION") return "tos_violation";
     if (account.status_reason === "VALIDATION_REQUIRED") return "validation_required";
     if (account.is_forbidden) return "forbidden";
     if (account.is_disabled) return "disabled";
@@ -155,6 +156,7 @@ const statusDotColors: Record<string, string> = {
     inactive: "bg-amber-500",
     disabled: "bg-muted-foreground/40",
     forbidden: "bg-red-500",
+    tos_violation: "bg-red-500 animate-pulse",
     validation_required: "bg-yellow-500 animate-pulse",
 };
 
@@ -253,7 +255,7 @@ function AccountRow({
                     <GripVertical className="h-4 w-4" />
                 </div>
 
-                <div className={`relative h-9 w-9 rounded-full flex shrink-0 items-center justify-center ${isPaid ? "border-google-colored" : ""}`}>
+                <div className={`relative h-9 w-9 rounded-full flex shrink-0 items-center justify-center ${isPaid ? "border-google-colored" : "p-[2px]"}`}>
                     <div className={`h-full w-full rounded-full ${isPaid ? "bg-background p-[2px]" : ""}`}>
                         {account.avatar_url ? (
                             <img
@@ -382,6 +384,25 @@ function AccountRow({
 
             {/* Actions */}
             <div className="flex items-center gap-1 justify-end">
+                {account.status_reason === "TOS_VIOLATION" && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
+                        title={account.status_details?.message || "TOS Violation — Account Banned"}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            const appealUrl = (account.status_details as any)?.appeal_url;
+                            if (appealUrl) {
+                                window.open(appealUrl, "_blank");
+                            } else {
+                                openValidationDialog(account);
+                            }
+                        }}
+                    >
+                        <Shield className="h-4 w-4 text-red-500" />
+                    </Button>
+                )}
                 {account.status_reason === "VALIDATION_REQUIRED" && (
                     <Button
                         variant="ghost"

@@ -146,6 +146,31 @@ def _extract_validation_from_body(response_body: dict | None) -> dict | None:
     
     return None
 
+
+def _extract_tos_violation(response_body: dict | None) -> dict | None:
+    """Extract TOS_VIOLATION info from a parsed API error response body."""
+    if not response_body or not isinstance(response_body, dict):
+        return None
+    
+    try:
+        error_obj = response_body.get("error", {})
+        details = error_obj.get("details", [])
+        
+        for detail in details:
+            reason = detail.get("reason", "")
+            if reason == "TOS_VIOLATION":
+                metadata = detail.get("metadata", {})
+                return {
+                    "reason": "TOS_VIOLATION",
+                    "appeal_url": metadata.get("appeal_url", ""),
+                    "appeal_url_link_text": metadata.get("appeal_url_link_text", "Submit Appeal"),
+                    "message": error_obj.get("message", "Account disabled for Terms of Service violation"),
+                }
+    except Exception:
+        pass
+    
+    return None
+
 async def _sync_gemini_cli(credential: OAuthCredential, session: AsyncSession) -> dict:
     """
     同步 Gemini CLI 客户端数据 (使用 production 端点)。
@@ -267,6 +292,10 @@ async def _sync_gemini_cli(credential: OAuthCredential, session: AsyncSession) -
     
     except CodeAssistError as e:
         logger.error(f"[Gemini CLI] Sync failed: {e}")
+        # Check for TOS_VIOLATION first
+        tos_info = _extract_tos_violation(e.response_body) if e.response_body else None
+        if tos_info:
+            return {"success": False, "error": str(e), "tos_violation": tos_info}
         details = _extract_validation_from_body(e.response_body) if e.response_body else None
         return {"success": False, "error": str(e), "validation_required": details or ("VALIDATION_REQUIRED" in str(e))}
     except Exception as e:
@@ -383,6 +412,10 @@ async def _sync_antigravity(credential: OAuthCredential, session: AsyncSession) 
 
     except CodeAssistError as e:
         logger.error(f"[Antigravity] Sync failed: {e}")
+        # Check for TOS_VIOLATION first
+        tos_info = _extract_tos_violation(e.response_body) if e.response_body else None
+        if tos_info:
+            return {"success": False, "error": str(e), "tos_violation": tos_info}
         details = _extract_validation_from_body(e.response_body) if e.response_body else None
         return {"success": False, "error": str(e), "validation_required": details or ("VALIDATION_REQUIRED" in str(e))}
     except Exception as e:
@@ -511,16 +544,28 @@ async def sync_account_info(
                     if account.status_reason != "VALIDATION_REQUIRED":
                         account.status_reason = reason
         
-        # Check validation required from sync results (403 error path)
-        gemini_val = gemini_result.get("validation_required")
-        antigravity_val = antigravity_result.get("validation_required")
+        # Check TOS_VIOLATION from sync results (403 error path)
+        gemini_tos = gemini_result.get("tos_violation")
+        antigravity_tos = antigravity_result.get("tos_violation")
         
-        if gemini_val or antigravity_val:
-            account.status_reason = "VALIDATION_REQUIRED"
-            # Extract details to persist URL
-            val_details = gemini_val if isinstance(gemini_val, dict) else (antigravity_val if isinstance(antigravity_val, dict) else None)
-            if val_details:
-                account.status_details = val_details
+        if gemini_tos or antigravity_tos:
+            is_forbidden = True
+            tos_details = gemini_tos if isinstance(gemini_tos, dict) else antigravity_tos
+            account.status_reason = "TOS_VIOLATION"
+            account.status_details = tos_details
+            logger.warning(f"[Sync] Account {account.email} flagged as TOS_VIOLATION")
+
+        # Check validation required from sync results (403 error path)
+        if not account.status_reason or account.status_reason not in ("TOS_VIOLATION",):
+            gemini_val = gemini_result.get("validation_required")
+            antigravity_val = antigravity_result.get("validation_required")
+            
+            if gemini_val or antigravity_val:
+                account.status_reason = "VALIDATION_REQUIRED"
+                # Extract details to persist URL
+                val_details = gemini_val if isinstance(gemini_val, dict) else (antigravity_val if isinstance(antigravity_val, dict) else None)
+                if val_details:
+                    account.status_details = val_details
 
 
         account.tier = best_tier

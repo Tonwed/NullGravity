@@ -3,6 +3,7 @@ NullGravity Backend - FastAPI Application
 AI Account Management & Protocol Proxy System
 """
 
+import os
 import multiprocessing
 multiprocessing.freeze_support()  # PyInstaller Windows 必须放在最顶部，防止子进程无限递归
 
