@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, Zap, BarChart3, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { ChartContainer } from "@/components/ui/chart";
 import { Area, AreaChart, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
@@ -24,6 +25,12 @@ const COLORS = [
 const CustomTooltip = ({ active, payload, label, seriesKeys }: any) => {
   if (!active || !payload || !payload.length) return null;
 
+  const formatValue = (value: number) => {
+    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
+    return value.toLocaleString();
+  };
+
   return (
     <div className="rounded-lg border bg-background p-2 shadow-sm">
       <div className="text-xs font-medium mb-1">{label}</div>
@@ -38,7 +45,7 @@ const CustomTooltip = ({ active, payload, label, seriesKeys }: any) => {
           <div key={entry.dataKey} className="flex items-center gap-2 text-xs">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
             <span className="text-muted-foreground">{entry.name || entry.dataKey}:</span>
-            <span className="font-medium">{entry.value.toLocaleString()}</span>
+            <span className="font-medium">{formatValue(entry.value)}</span>
           </div>
         );
       })}
@@ -84,6 +91,7 @@ export function TokenStatsView({ data, onGroupByChange }: {
   data: TokenStatsData | null; 
   onGroupByChange: (groupBy: string) => void;
 }) {
+  const t = useTranslations("dashboard");
   const [groupBy, setGroupBy] = useState<"total" | "model" | "user" | "account">("total");
 
   const handleGroupByChange = (newGroupBy: "total" | "model" | "user" | "account") => {
@@ -94,7 +102,7 @@ export function TokenStatsView({ data, onGroupByChange }: {
   if (!data) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-muted-foreground">加载中...</p>
+        <p className="text-muted-foreground">{t("loading")}</p>
       </div>
     );
   }
@@ -120,16 +128,16 @@ export function TokenStatsView({ data, onGroupByChange }: {
     <div className="space-y-6 animate-in fade-in duration-300">
       {/* 总览卡片 */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="总请求数" value={data.total_requests.toLocaleString()} icon={BarChart3} />
-        <StatCard title="输入 Token" value={data.total_input_tokens.toLocaleString()} icon={TrendingUp} />
-        <StatCard title="输出 Token" value={data.total_output_tokens.toLocaleString()} icon={Zap} />
-        <StatCard title="总 Token" value={data.total_tokens.toLocaleString()} icon={Activity} />
+        <StatCard title={t("totalTokenRequests")} value={data.total_requests.toLocaleString()} icon={BarChart3} />
+        <StatCard title={t("inputTokens")} value={data.total_input_tokens.toLocaleString()} icon={TrendingUp} />
+        <StatCard title={t("outputTokens")} value={data.total_output_tokens.toLocaleString()} icon={Zap} />
+        <StatCard title={t("totalTokens")} value={data.total_tokens.toLocaleString()} icon={Activity} />
       </div>
 
       {/* 模型使用统计 */}
       <div className="space-y-4">
         <div className="flex items-center justify-between px-1">
-          <h3 className="text-sm font-medium">模型使用统计</h3>
+          <h3 className="text-sm font-medium">{t("modelUsageStats")}</h3>
           <div className="flex gap-2">
             <Button 
               variant={groupBy === "total" ? "secondary" : "ghost"} 
@@ -137,7 +145,7 @@ export function TokenStatsView({ data, onGroupByChange }: {
               className="h-7 text-xs"
               onClick={() => handleGroupByChange("total")}
             >
-              总体
+              {t("total")}
             </Button>
             <Button 
               variant={groupBy === "model" ? "secondary" : "ghost"} 
@@ -145,7 +153,7 @@ export function TokenStatsView({ data, onGroupByChange }: {
               className="h-7 text-xs"
               onClick={() => handleGroupByChange("model")}
             >
-              按模型
+              {t("byModel")}
             </Button>
             <Button 
               variant={groupBy === "user" ? "secondary" : "ghost"} 
@@ -153,7 +161,7 @@ export function TokenStatsView({ data, onGroupByChange }: {
               className="h-7 text-xs"
               onClick={() => handleGroupByChange("user")}
             >
-              按Token
+              {t("byToken")}
             </Button>
             <Button 
               variant={groupBy === "account" ? "secondary" : "ghost"} 
@@ -161,7 +169,7 @@ export function TokenStatsView({ data, onGroupByChange }: {
               className="h-7 text-xs"
               onClick={() => handleGroupByChange("account")}
             >
-              按账号
+              {t("byAccount")}
             </Button>
           </div>
         </div>
@@ -197,7 +205,7 @@ export function TokenStatsView({ data, onGroupByChange }: {
                   dataKey={key}
                   stroke={COLORS[index % COLORS.length]}
                   fill={`url(#fill${index})`}
-                  strokeWidth={2}
+                  strokeWidth={1}
                 />
               ))}
             </AreaChart>
@@ -207,7 +215,7 @@ export function TokenStatsView({ data, onGroupByChange }: {
 
       {/* 账号使用统计 */}
       <div className="space-y-4">
-        <h3 className="text-sm font-medium px-1">账号使用统计 (Top 10)</h3>
+        <h3 className="text-sm font-medium px-1">{t("accountUsageStats")}</h3>
         <div className="rounded-lg border border-border border-b-border/80 bg-card shadow-[0_2px_4px_-2px_rgba(0,0,0,0.08)] dark:shadow-none p-6 space-y-4">
           {data.by_account.map((item) => {
           const totalTokens = item.input_tokens + item.output_tokens;

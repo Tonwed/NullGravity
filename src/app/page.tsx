@@ -175,7 +175,7 @@ function QuotaProgressBar({ fraction, label, subLabel }: { fraction: number, lab
   );
 }
 
-function AccountItem({ account, t }: { account: AccountSummary, t: any }) {
+function AccountItem({ account, t, tc }: { account: AccountSummary, t: any, tc: any }) {
   const models = [...(account.gemini_models || []), ...(account.antigravity_models || [])];
   const uniqueModels = Array.from(new Map(models.map(m => [m.name, m])).values());
 
@@ -210,7 +210,7 @@ function AccountItem({ account, t }: { account: AccountSummary, t: any }) {
     const now = new Date();
     const diffMs = date.getTime() - now.getTime();
 
-    if (diffMs <= 0) return t("dashboard.resetsAt") + ": " + t("common.now");
+    if (diffMs <= 0) return t("resetsAt") + ": " + tc("now");
 
     const hours = Math.floor(diffMs / (1000 * 60 * 60));
     const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -244,12 +244,12 @@ function AccountItem({ account, t }: { account: AccountSummary, t: any }) {
                     <TooltipTrigger>
                       <AlertTriangle className="h-3.5 w-3.5 text-yellow-500" />
                     </TooltipTrigger>
-                    <TooltipContent>{t("dashboard.validationRequired")}</TooltipContent>
+                    <TooltipContent>{t("validationRequired")}</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               )}
               {account.is_forbidden && account.status_reason !== "TOS_VIOLATION" && (
-                <Badge variant="destructive" className="h-4 px-1 text-[10px] rounded-[4px]">{t("dashboard.forbidden")}</Badge>
+                <Badge variant="destructive" className="h-4 px-1 text-[10px] rounded-[4px]">{t("forbidden")}</Badge>
               )}
             </div>
             <span className="text-[11px] text-muted-foreground truncate opacity-80">{account.email}</span>
@@ -273,7 +273,7 @@ function AccountItem({ account, t }: { account: AccountSummary, t: any }) {
           ))
         ) : (
           <div className="text-[10px] text-muted-foreground italic py-1 text-center opacity-70">
-            {t("common.noData")}
+            {tc("noData")}
           </div>
         )}
       </div>
@@ -288,15 +288,17 @@ function UptimeDisplay({ seconds, t }: { seconds: number, t: any }) {
 
   return (
     <span className="tabular-nums font-mono text-sm tracking-tight text-foreground/90">
-      {days > 0 && <span>{days}<span className="text-muted-foreground font-sans text-xs ml-0.5 mr-1.5">{t("dashboard.days")}</span></span>}
-      {hours > 0 && <span>{hours}<span className="text-muted-foreground font-sans text-xs ml-0.5 mr-1.5">{t("dashboard.hours")}</span></span>}
-      <span>{minutes}<span className="text-muted-foreground font-sans text-xs ml-0.5">{t("dashboard.minutes")}</span></span>
+      {days > 0 && <span>{days}<span className="text-muted-foreground font-sans text-xs ml-0.5 mr-1.5">{t("days")}</span></span>}
+      {hours > 0 && <span>{hours}<span className="text-muted-foreground font-sans text-xs ml-0.5 mr-1.5">{t("hours")}</span></span>}
+      <span>{minutes}<span className="text-muted-foreground font-sans text-xs ml-0.5">{t("minutes")}</span></span>
     </span>
   );
 }
 
 export default function DashboardPage() {
-  const t = useTranslations();
+  const t = useTranslations("dashboard");
+  const tc = useTranslations("common");
+  const ta = useTranslations("accounts");
   const [activeTab, setActiveTab] = useState<"overview" | "tokens">("overview");
   const [timeRange, setTimeRange] = useState<"24h" | "7d" | "30d">("24h");
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -317,7 +319,7 @@ export default function DashboardPage() {
       setError(null);
     } catch (err) {
       console.error(err);
-      setError(tRef.current("common.error"));
+      setError(tRef.current("error"));
     } finally {
       setLoading(false);
     }
@@ -419,7 +421,7 @@ export default function DashboardPage() {
       <div className="h-full w-full flex items-center justify-center min-h-[400px]">
         <div className="flex flex-col items-center gap-4 text-muted-foreground">
           <RefreshCw className="h-8 w-8 animate-spin opacity-50" />
-          <p className="text-sm">{t("common.loading")}</p>
+          <p className="text-sm">{t("loading")}</p>
         </div>
       </div>
     );
@@ -430,8 +432,8 @@ export default function DashboardPage() {
       <div className="h-full w-full flex items-center justify-center min-h-[400px]">
         <div className="flex flex-col items-center gap-4 text-destructive">
           <AlertTriangle className="h-10 w-10" />
-          <p>{t("dashboard.subtitle")}</p>
-          <Button onClick={fetchStats} variant="outline" size="sm">{t("common.retry")}</Button>
+          <p>{t("subtitle")}</p>
+          <Button onClick={fetchStats} variant="outline" size="sm">{tc("retry")}</Button>
         </div>
       </div>
     );
@@ -445,16 +447,16 @@ export default function DashboardPage() {
       {/* Header - Matches Accounts Page Style */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold">{t("dashboard.title")}</h1>
+          <h1 className="text-lg font-semibold">{t("title")}</h1>
           <p className="text-sm text-muted-foreground">
-            {t("dashboard.subtitle")}
+            {t("subtitle")}
           </p>
         </div>
         <div className="flex items-center space-x-2">
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "overview" | "tokens")}>
             <TabsList>
-              <TabsTrigger value="overview">系统概览</TabsTrigger>
-              <TabsTrigger value="tokens">Token 统计</TabsTrigger>
+              <TabsTrigger value="overview">{t("systemOverview")}</TabsTrigger>
+              <TabsTrigger value="tokens">{t("tokenStats")}</TabsTrigger>
             </TabsList>
           </Tabs>
           <div className={cn(
@@ -467,7 +469,7 @@ export default function DashboardPage() {
               className="h-8 text-xs whitespace-nowrap"
               onClick={() => { setTimeRange("24h"); handleTimeRangeChange("24h"); }}
             >
-              24小时
+              {t("24h")}
             </Button>
             <Button 
               variant={timeRange === "7d" ? "secondary" : "ghost"} 
@@ -475,7 +477,7 @@ export default function DashboardPage() {
               className="h-8 text-xs whitespace-nowrap"
               onClick={() => { setTimeRange("7d"); handleTimeRangeChange("7d"); }}
             >
-              7天
+              {t("7d")}
             </Button>
             <Button 
               variant={timeRange === "30d" ? "secondary" : "ghost"} 
@@ -483,7 +485,7 @@ export default function DashboardPage() {
               className="h-8 text-xs whitespace-nowrap"
               onClick={() => { setTimeRange("30d"); handleTimeRangeChange("30d"); }}
             >
-              30天
+              {t("30d")}
             </Button>
           </div>
           <Button onClick={fetchStats} variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -492,7 +494,7 @@ export default function DashboardPage() {
           <Button asChild size="sm" className="h-8 gap-1.5 text-xs">
             <Link href="/accounts">
               <Users className="h-3.5 w-3.5" />
-              {t("dashboard.viewAccounts")}
+              {t("viewAccounts")}
             </Link>
           </Button>
         </div>
@@ -506,25 +508,25 @@ export default function DashboardPage() {
       {/* Top Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title={t("dashboard.totalAccounts")}
+          title={t("totalAccounts")}
           value={s.total_accounts}
           icon={Users}
-          trend={`${s.active_accounts} ${t("accounts.active")}`}
+          trend={`${s.active_accounts} ${ta("active")}`}
         />
         <StatCard
-          title={t("dashboard.uptime")}
+          title={t("uptime")}
           value={<UptimeDisplay seconds={s.backend_uptime_seconds || 0} t={t} />}
           icon={Clock}
           className="bg-card"
         />
         <StatCard
-          title={t("dashboard.requestsToday")}
+          title={t("requestsToday")}
           value={s.requests_today}
           icon={Zap}
-          trend={s.total_requests > 0 ? `${t("dashboard.totalRequests")}: ${s.total_requests}` : undefined}
+          trend={s.total_requests > 0 ? `${t("totalRequests")}: ${s.total_requests}` : undefined}
         />
         <StatCard
-          title={t("dashboard.successRate")}
+          title={t("successRate")}
           value={s.success_rate !== null ? `${s.success_rate}%` : "--%"}
           icon={Activity}
           trend={s.avg_latency_ms ? `${s.avg_latency_ms}ms avg` : undefined}
@@ -539,7 +541,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between px-1">
             <h3 className="text-sm font-medium flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              {t("dashboard.quotaOverview")}
+              {t("quotaOverview")}
             </h3>
             <Badge variant="outline" className="font-mono text-[10px] text-muted-foreground font-normal">
               {s.active_accounts} Active
@@ -549,14 +551,14 @@ export default function DashboardPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             {s.accounts.length > 0 ? (
               s.accounts.map(acc => (
-                <AccountItem key={acc.id} account={acc} t={t} />
+                <AccountItem key={acc.id} account={acc} t={t} tc={tc} />
               ))
             ) : (
               <div className="col-span-2 flex flex-col items-center justify-center py-10 text-center text-muted-foreground border border-dashed rounded-xl bg-card/50">
                 <Users className="h-8 w-8 mb-3 opacity-20" />
-                <p className="text-sm">{t("dashboard.noAccounts")}</p>
+                <p className="text-sm">{t("noAccounts")}</p>
                 <Button variant="link" asChild className="h-auto p-0 mt-1 text-xs">
-                  <Link href="/accounts">{t("dashboard.addAccount")}</Link>
+                  <Link href="/accounts">{t("addAccount")}</Link>
                 </Button>
               </div>
             )}
@@ -570,7 +572,7 @@ export default function DashboardPage() {
           <div className="space-y-3">
             <h3 className="text-sm font-medium flex items-center gap-2 px-1">
               <Server className="h-4 w-4 text-muted-foreground" />
-              {t("dashboard.system")}
+              {t("system")}
             </h3>
             <div className="grid gap-3">
               {/* API Proxy Item */}
@@ -606,9 +608,9 @@ export default function DashboardPage() {
                     <Server className="h-4 w-4" />
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[13px] font-medium leading-none">{t("dashboard.proxy")}</span>
+                    <span className="text-[13px] font-medium leading-none">{t("proxy")}</span>
                     <span className="text-[11px] text-muted-foreground font-mono">
-                      {s.proxy_enabled ? (s.proxy_ip || t("dashboard.connected")) : t("dashboard.disabled")}
+                      {s.proxy_enabled ? (s.proxy_ip || t("connected")) : t("disabled")}
                     </span>
                   </div>
                 </div>
@@ -631,9 +633,9 @@ export default function DashboardPage() {
                     <RefreshCw className="h-4 w-4" />
                   </div>
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[13px] font-medium leading-none">{t("dashboard.autoRefresh")}</span>
+                    <span className="text-[13px] font-medium leading-none">{t("autoRefresh")}</span>
                     <span className="text-[11px] text-muted-foreground">
-                      {s.auto_refresh_enabled ? t("dashboard.enabled") : t("dashboard.disabled")}
+                      {s.auto_refresh_enabled ? t("enabled") : t("disabled")}
                     </span>
                   </div>
                 </div>
@@ -647,10 +649,10 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between px-1">
               <h3 className="text-sm font-medium flex items-center gap-2">
                 <Activity className="h-4 w-4 text-muted-foreground" />
-                {t("dashboard.recentActivity")}
+                {t("recentActivity")}
               </h3>
               <Link href="/logs" className="text-[10px] text-muted-foreground hover:text-foreground flex items-center gap-1">
-                {t("dashboard.viewLogs")} <ArrowRight className="h-3 w-3" />
+                {t("viewLogs")} <ArrowRight className="h-3 w-3" />
               </Link>
             </div>
 
@@ -729,7 +731,7 @@ export default function DashboardPage() {
               ) : (
                 <div className="flex h-32 flex-col items-center justify-center gap-2 rounded-lg border border-dashed text-center">
                   <Activity className="h-8 w-8 text-muted-foreground/20" />
-                  <p className="text-sm text-muted-foreground/50">{t("dashboard.noActivity")}</p>
+                  <p className="text-sm text-muted-foreground/50">{t("noActivity")}</p>
                 </div>
               )}
             </div>

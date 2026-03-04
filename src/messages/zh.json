@@ -57,7 +57,47 @@
         "seconds": "秒",
         "viewLogs": "查看日志",
         "manageSettings": "管理设置",
-        "refreshAll": "刷新全部"
+        "refreshAll": "刷新全部",
+        "tokenStats": "Token 统计",
+        "overview": "概览",
+        "totalTokenRequests": "总请求数",
+        "usageDetails": "使用详情",
+        "modelUsageStats": "模型使用统计",
+        "byModel": "按模型",
+        "byToken": "按Token",
+        "byAccount": "按账号",
+        "total": "总体",
+        "usageTrend": "使用趋势",
+        "byModelStats": "按模型统计",
+        "loading": "加载中...",
+        "updating": "更新中...",
+        "requests": "请求",
+        "tokens": "Tokens",
+        "totalTokens": "总 Token",
+        "systemOverview": "系统概览",
+        "24h": "24小时",
+        "7d": "7天",
+        "30d": "30天",
+        "inputTokens": "输入 Token",
+        "outputTokens": "输出 Token",
+        "accountUsageStats": "账号使用统计 (Top 10)",
+        "events": {
+            "system": {
+                "start": "系统已启动"
+            },
+            "proxy": {
+                "connected": "代理已连接 ({ip})",
+                "disconnected": "代理已断开"
+            },
+            "account": {
+                "create": "账号已创建: {email}",
+                "delete": "账号已删除: {email}",
+                "sync": "账号已同步"
+            },
+            "app": {
+                "launch": "应用已启动"
+            }
+        }
     },
     "accounts": {
         "title": "账号管理",
@@ -145,7 +185,14 @@
         "importSuccess": "成功",
         "importSkipped": "跳过",
         "importFailed": "失败",
-        "importClose": "完成"
+        "importClose": "完成",
+        "antigravityLoginTitle": "Antigravity 登录",
+        "antigravityLoginDesc": "通过 Google 账号登录，获取 API 额度、模型权限与代码助手功能。",
+        "antigravityLoginSubtitle": "通过 Antigravity 登录 Google 账号以获取 API 额度与模型权限",
+        "fetchingAntigravityInfo": "正在获取 Antigravity 模型与额度信息...",
+        "connectingAntigravityClient": "正在连接 Antigravity 客户端",
+        "connectingAntigravity": "正在连接 Antigravity...",
+        "completeAuthInBrowser": "请在新打开的浏览器窗口中完成 Google 授权"
     },
     "settings": {
         "title": "系统设置",

@@ -70,6 +70,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { apiFetch, getApiBase } from "@/lib/api";
+import { TokenUsageDrawer } from "@/components/token/token-usage-drawer";
 
 const sections = [
     { id: "proxy", icon: Network, labelKey: "antigravityProxy" as const, descKey: "antigravityProxyDesc" as const },
@@ -310,6 +311,11 @@ export default function ApiProxyPage() {
     // Dialog State
     const [isTokenDialogOpen, setIsTokenDialogOpen] = useState(false);
     const [newlyGeneratedToken, setNewlyGeneratedToken] = useState<string | null>(null);
+    
+    // Token Usage Drawer
+    const [usageDrawerOpen, setUsageDrawerOpen] = useState(false);
+    const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
+    const [selectedTokenName, setSelectedTokenName] = useState("");
     const [dialogType, setDialogType] = useState<"create" | "regenerate">("create");
     const [confirmDialog, setConfirmDialog] = useState<{ isOpen: boolean, type: "regenerate" | "delete", tokenId: number | null }>({ isOpen: false, type: "regenerate", tokenId: null });
     const [isConfirming, setIsConfirming] = useState(false);
@@ -641,17 +647,10 @@ export default function ApiProxyPage() {
         } catch { fetchMappings(); }
     };
 
-    const handleViewTokenUsage = async (tokenId: number) => {
-        setUsageTokenId(tokenId);
-        setLoadingUsage(true);
-        try {
-            const res = await apiFetch(`${getApiBase()}/api-proxy/logs?limit=200`);
-            if (res.ok) {
-                const data = await res.json();
-                setUsageLogs(data.items || []);
-            }
-        } catch { }
-        finally { setLoadingUsage(false); }
+    const handleViewTokenUsage = async (tokenId: number, tokenName: string) => {
+        setSelectedTokenId(tokenId.toString());
+        setSelectedTokenName(tokenName);
+        setUsageDrawerOpen(true);
     };
 
     const activeInfo = sections.find((s) => s.id === activeSection)!;
@@ -1187,7 +1186,7 @@ export default function ApiProxyPage() {
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-1">
-                                                    <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={() => handleViewTokenUsage(token.id)}>
+                                                    <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={() => handleViewTokenUsage(token.id, token.name)}>
                                                         <BarChart3 className="h-3 w-3 mr-1 shrink-0" />
                                                         <span className="mt-[1px] leading-none">{t("usageDetails" as any)}</span>
                                                     </Button>
@@ -1541,6 +1540,14 @@ export default function ApiProxyPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Token Usage Drawer */}
+            <TokenUsageDrawer
+                open={usageDrawerOpen}
+                onOpenChange={setUsageDrawerOpen}
+                tokenId={selectedTokenId}
+                tokenName={selectedTokenName}
+            />
         </div>
     );
 }

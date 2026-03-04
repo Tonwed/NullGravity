@@ -57,7 +57,47 @@
     "seconds": "s",
     "viewLogs": "View Logs",
     "manageSettings": "Manage Settings",
-    "refreshAll": "Refresh All"
+    "refreshAll": "Refresh All",
+    "tokenStats": "Token Statistics",
+    "overview": "Overview",
+    "totalTokenRequests": "Total Requests",
+    "usageDetails": "Usage Details",
+    "modelUsageStats": "Model Usage Statistics",
+    "byModel": "By Model",
+    "byToken": "By Token",
+    "byAccount": "By Account",
+    "total": "Total",
+    "usageTrend": "Usage Trend",
+    "byModelStats": "By Model Statistics",
+    "loading": "Loading...",
+    "updating": "Updating...",
+    "requests": "Requests",
+    "tokens": "Tokens",
+    "totalTokens": "Total Tokens",
+    "systemOverview": "System Overview",
+    "24h": "24 Hours",
+    "7d": "7 Days",
+    "30d": "30 Days",
+    "inputTokens": "Input Tokens",
+    "outputTokens": "Output Tokens",
+    "accountUsageStats": "Account Usage Statistics (Top 10)",
+    "events": {
+      "system": {
+        "start": "System started"
+      },
+      "proxy": {
+        "connected": "Proxy connected ({ip})",
+        "disconnected": "Proxy disconnected"
+      },
+      "account": {
+        "create": "Account created: {email}",
+        "delete": "Account deleted: {email}",
+        "sync": "Account synced"
+      },
+      "app": {
+        "launch": "Application launched"
+      }
+    }
   },
   "accounts": {
     "title": "Accounts",
@@ -145,7 +185,14 @@
     "importSuccess": "Success",
     "importSkipped": "Skipped",
     "importFailed": "Failed",
-    "importClose": "Done"
+    "importClose": "Done",
+    "antigravityLoginTitle": "Antigravity Login",
+    "antigravityLoginDesc": "Login with Google account to get API quota, model permissions, and code assistant features.",
+    "antigravityLoginSubtitle": "Login via Antigravity to get API quota and model permissions for Google account",
+    "fetchingAntigravityInfo": "Fetching Antigravity models and quota information...",
+    "connectingAntigravityClient": "Connecting to Antigravity client",
+    "connectingAntigravity": "Connecting to Antigravity...",
+    "completeAuthInBrowser": "Please complete Google authorization in the newly opened browser window"
   },
   "settings": {
     "title": "Settings",

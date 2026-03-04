@@ -175,11 +175,11 @@ export function AddAccountDialog({
     const getDescription = () => {
         switch (step) {
             case "authenticating":
-                return "正在连接 Antigravity 客户端";
+                return t("connectingAntigravityClient");
             case "setting_up":
                 return "正在同步 Antigravity 数据";
             default:
-                return "通过 Antigravity 登录 Google 账号以获取 API 额度与模型权限";
+                return t("antigravityLoginSubtitle");
         }
     };
 
@@ -214,10 +214,10 @@ export function AddAccountDialog({
 
                                     <div className="flex-1 min-w-0 z-10 space-y-1">
                                         <div className="flex items-center justify-between">
-                                            <span className="font-semibold text-sm">Antigravity 登录</span>
+                                            <span className="font-semibold text-sm">{t("antigravityLoginTitle")}</span>
                                         </div>
                                         <p className="text-xs text-muted-foreground leading-relaxed">
-                                            通过 Google 账号登录，获取 API 额度、模型权限与代码助手功能。
+                                            {t("antigravityLoginDesc")}
                                         </p>
                                     </div>
                                 </button>
@@ -235,7 +235,7 @@ export function AddAccountDialog({
                             <div className="text-center space-y-1.5">
                                 <p className="text-sm font-semibold">认证成功</p>
                                 <p className="text-xs text-muted-foreground">
-                                    正在获取 Antigravity 模型与额度信息...
+                                    {t("fetchingAntigravityInfo")}
                                 </p>
                             </div>
                         </div>
@@ -251,10 +251,10 @@ export function AddAccountDialog({
                                 </div>
                                 <div className="text-center space-y-1">
                                     <p className="text-sm font-semibold">
-                                        正在连接 Antigravity...
+                                        {t("connectingAntigravity")}
                                     </p>
                                     <p className="text-xs text-muted-foreground">
-                                        请在新打开的浏览器窗口中完成 Google 授权
+                                        {t("completeAuthInBrowser")}
                                     </p>
                                 </div>
                             </div>

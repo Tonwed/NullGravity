@@ -28,6 +28,9 @@ import {
     HardDrive,
     Trash2,
     Timer,
+    Wallet,
+    MessageCircle,
+    QrCode,
     Type,
 } from "lucide-react";
 import Image from "next/image";
@@ -55,6 +58,7 @@ import {
 import { locales, localeNames, type Locale } from "@/i18n/config";
 import { getUserLocaleSync, setUserLocaleSync } from "@/i18n/locale";
 import { useState, useEffect, useCallback } from "react";
+import { PaymentDialog } from "@/components/settings/payment-dialog";
 import { cn } from "@/lib/utils";
 import { useSidebarMica } from "@/hooks/use-sidebar-mica";
 import { getVersion } from "@tauri-apps/api/app";
@@ -84,6 +88,8 @@ export default function SettingsPage() {
     const { theme, setTheme, resolvedTheme } = useTheme();
     const [mounted, setMounted] = useState(false);
     const [appVersion, setAppVersion] = useState("v0.1.0");
+    const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+    const [paymentType, setPaymentType] = useState<"alipay" | "wechat">("alipay");
 
     useEffect(() => {
         getVersion().then(v => setAppVersion(`v${v}`)).catch(() => { });
@@ -1225,22 +1231,52 @@ export default function SettingsPage() {
                                 {/* Sponsor */}
                                 <div className="rounded-lg border border-border border-b-border/80 bg-card shadow-[0_2px_4px_-2px_rgba(0,0,0,0.08)] dark:shadow-none p-4 text-left">
                                     <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-1">{t("sponsor")}</h4>
-                                    <a
-                                        href="https://github.com/sponsors/Tonwed" // Assuming this or general link
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center group -mx-2 px-2 py-2 rounded-lg hover:bg-muted/50 transition-colors"
+                                    
+                                    {/* Payment Options */}
+                                    <button
+                                        onClick={() => { setPaymentType("alipay"); setPaymentDialogOpen(true); }}
+                                        className="flex items-center group -mx-2 px-2 py-2 rounded-lg hover:bg-muted/50 transition-colors w-full text-left cursor-pointer"
                                     >
                                         <div className="flex items-center gap-3 flex-1">
-                                            <div className="h-10 w-10 rounded-full bg-pink-100 dark:bg-pink-900/20 flex items-center justify-center shrink-0 border border-border/50 group-hover:border-border transition-colors">
-                                                <Heart className="h-5 w-5 text-pink-600 dark:text-pink-400 group-hover:scale-110 transition-transform" />
+                                            <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/20 flex items-center justify-center shrink-0 border border-border/50 group-hover:border-border transition-colors">
+                                                <QrCode className="h-5 w-5 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform" />
+                                            </div>
+                                            <div>
+                                                <div className="font-medium text-sm">支付宝</div>
+                                                <div className="text-xs text-muted-foreground">Alipay</div>
+                                            </div>
+                                        </div>
+                                    </button>
+                                    <button
+                                        onClick={() => { setPaymentType("wechat"); setPaymentDialogOpen(true); }}
+                                        className="flex items-center group -mx-2 px-2 py-2 rounded-lg hover:bg-muted/50 transition-colors w-full text-left cursor-pointer"
+                                    >
+                                        <div className="flex items-center gap-3 flex-1">
+                                            <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center shrink-0 border border-border/50 group-hover:border-border transition-colors">
+                                                <QrCode className="h-5 w-5 text-green-600 dark:text-green-400 group-hover:scale-110 transition-transform" />
+                                            </div>
+                                            <div>
+                                                <div className="font-medium text-sm">微信支付</div>
+                                                <div className="text-xs text-muted-foreground">WeChat Pay</div>
+                                            </div>
+                                        </div>
+                                    </button>
+                                    <a
+                                        href="https://credit.linux.do/paying/online?token=e2e8f937f3f121994bb6931b080024f52a4ed3a32c255678d29c7770682b5868"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center group -mx-2 px-2 py-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                                    >
+                                        <div className="flex items-center gap-3 flex-1">
+                                            <div className="h-10 w-10 rounded-full bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center shrink-0 border border-border/50 group-hover:border-border transition-colors overflow-hidden">
+                                                <img src="/linuxdo.png" alt="Linux Do" className="h-6 w-6 object-contain group-hover:scale-110 transition-transform" />
                                             </div>
                                             <div>
                                                 <div className="font-medium text-sm flex items-center gap-1.5">
-                                                    {t("openSponsor")}
+                                                    Linux Do LDC
                                                     <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                                                 </div>
-                                                <div className="text-xs text-muted-foreground">GitHub Sponsors</div>
+                                                <div className="text-xs text-muted-foreground">Virtual Credit Platform</div>
                                             </div>
                                         </div>
                                     </a>
@@ -1250,6 +1286,11 @@ export default function SettingsPage() {
                     )}
                 </div>
             </div>
+            <PaymentDialog 
+                open={paymentDialogOpen} 
+                onOpenChange={setPaymentDialogOpen} 
+                type={paymentType} 
+            />
         </div>
     );
 }
