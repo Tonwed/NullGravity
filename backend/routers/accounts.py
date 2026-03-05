@@ -259,7 +259,8 @@ async def list_accounts(
     total_result = await session.execute(count_query)
     total = total_result.scalar() or 0
 
-    # Paginated results
+    # Sort by sort_order, then created_at
+    query = query.order_by(Account.sort_order.asc(), Account.created_at.asc())
     query = query.offset((page - 1) * page_size).limit(page_size)
     result = await session.execute(query)
     accounts = result.scalars().all()
@@ -268,6 +269,21 @@ async def list_accounts(
         items=[AccountResponse.model_validate(a) for a in accounts],
         total=total,
     )
+
+
+@router.put("/reorder")
+async def reorder_accounts(
+    ordered_ids: list[str],
+    session: AsyncSession = Depends(get_session),
+):
+    """Save account display order."""
+    for index, account_id in enumerate(ordered_ids):
+        result = await session.execute(select(Account).where(Account.id == account_id))
+        account = result.scalar_one_or_none()
+        if account:
+            account.sort_order = index
+    await session.commit()
+    return {"success": True}
 
 
 @router.post("/", response_model=AccountResponse, status_code=201)

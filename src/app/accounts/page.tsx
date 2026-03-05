@@ -19,6 +19,8 @@ import {
     AlertTriangle,
     Download,
     Upload,
+    Copy,
+    Check,
 } from "lucide-react";
 import { useWebSocket } from "@/components/providers/websocket-provider";
 import { Button } from "@/components/ui/button";
@@ -241,7 +243,7 @@ function AccountRow({
         <div
             ref={domRef}
             style={style}
-            className={`group grid grid-cols-[250px_100px_105px_105px_105px_80px_auto] items-center gap-3 border-b border-border/60 px-4 py-2.5 text-[13px] last:border-b-0 transition-colors bg-card ${isOverlay ? "shadow-xl ring-1 ring-border rounded-md cursor-grabbing" : isDragging ? "opacity-30" : "hover:bg-accent/40"}`}
+            className={`group grid grid-cols-[300px_100px_105px_105px_105px_80px_auto] items-center gap-3 border-b border-border/60 px-4 py-2.5 text-[13px] last:border-b-0 transition-colors bg-card ${isOverlay ? "shadow-xl ring-1 ring-border rounded-md cursor-grabbing" : isDragging ? "opacity-30" : "hover:bg-accent/40"}`}
         >
             {/* Account info */}
             <div className="flex items-center gap-2.5 min-w-0">
@@ -545,6 +547,7 @@ export default function AccountsPage() {
     const [activeId, setActiveId] = useState<string | null>(null);
     const [accountToDelete, setAccountToDelete] = useState<string | null>(null);
     const [validationAccount, setValidationAccount] = useState<AccountItem | null>(null);
+    const [validationLinkCopied, setValidationLinkCopied] = useState(false);
     const [exportOpen, setExportOpen] = useState(false);
     const [exportAccountIds, setExportAccountIds] = useState<string[]>([]);
     const [importOpen, setImportOpen] = useState(false);
@@ -569,6 +572,13 @@ export default function AccountsPage() {
                 const newIndex = items.findIndex((item) => item.id === over.id);
                 const newItems = arrayMove(items, oldIndex, newIndex);
                 try { localStorage.setItem(CACHE_KEY, JSON.stringify(newItems)); } catch { }
+                // Save to backend
+                const orderedIds = newItems.map((item) => item.id);
+                apiFetch(`${getApiBase()}/accounts/reorder`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(orderedIds),
+                }).catch(console.error);
                 return newItems;
             });
         }
@@ -783,7 +793,7 @@ export default function AccountsPage() {
             {/* Table */}
             <div className="rounded-lg border border-border bg-card overflow-hidden">
                 {/* Header */}
-                <div className="grid grid-cols-[250px_100px_105px_105px_105px_80px_auto] gap-3 border-b border-border px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                <div className="grid grid-cols-[300px_100px_105px_105px_105px_80px_auto] gap-3 border-b border-border px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                     <span>{t("email")}</span>
                     <span>{t("subscription") || "Subscription"}</span>
                     <span>Gemini</span>
@@ -820,7 +830,7 @@ export default function AccountsPage() {
                         {[1, 2, 3].map((i) => (
                             <div
                                 key={i}
-                                className="grid grid-cols-[250px_100px_105px_105px_105px_80px_auto] items-center gap-3 border-b border-border/60 px-4 py-3"
+                                className="grid grid-cols-[300px_100px_105px_105px_105px_80px_auto] items-center gap-3 border-b border-border/60 px-4 py-3"
                             >
                                 <div className="flex items-center gap-2.5">
                                     <div className="h-7 w-7 rounded-full bg-muted animate-pulse" />
@@ -907,13 +917,44 @@ export default function AccountsPage() {
                     <div className="text-sm text-muted-foreground">
                         {t("validation.note") || "Please verify your account to restore functionality."}
                     </div>
+                    {validationAccount?.status_details?.validation_url && (
+                        <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+                            <input
+                                type="text"
+                                readOnly
+                                value={validationAccount.status_details.validation_url}
+                                className="flex-1 bg-transparent text-xs font-mono outline-none"
+                            />
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className={`h-7 w-7 p-0 shrink-0 ${validationLinkCopied ? 'bg-green-50 border-green-500 dark:bg-green-950/20' : ''}`}
+                                title="Copy link"
+                                onClick={() => {
+                                    navigator.clipboard.writeText(validationAccount.status_details!.validation_url!);
+                                    setValidationLinkCopied(true);
+                                    setTimeout(() => setValidationLinkCopied(false), 2000);
+                                }}
+                            >
+                                {validationLinkCopied ? (
+                                    <Check className="h-4 w-4 text-green-600" />
+                                ) : (
+                                    <Copy className="h-4 w-4" />
+                                )}
+                            </Button>
+                        </div>
+                    )}
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setValidationAccount(null)}>
                             {t("validation.close") || "Close"}
                         </Button>
                         {validationAccount?.status_details?.validation_url ? (
-                            <Button onClick={() => window.open(validationAccount.status_details!.validation_url, "_blank")}>
-                                {t("validation.button") || "Verify Account"}
+                            <Button onClick={() => {
+                                const accountId = validationAccount.id;
+                                setValidationAccount(null);
+                                handleRefreshAccount(accountId);
+                            }}>
+                                {t("validation.button") || "I've Verified"}
                             </Button>
                         ) : (
                             <Button asChild>

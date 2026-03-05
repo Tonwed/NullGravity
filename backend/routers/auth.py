@@ -140,10 +140,11 @@ async def start_google_auth(request: Request, client_type: str = CLIENT_TYPE_ANT
     state = secrets.token_urlsafe(32)
     session_id = secrets.token_urlsafe(16)
 
-    # Match official Antigravity: localhost + /oauth-callback path
+    # Use frontend URL for OAuth callback (works in both dev and production)
+    # In dev: frontend is localhost:3000, in prod: same origin
     port = int(os.environ.get("NULLGRAVITY_PORT", "8046"))
-    host = f"localhost:{port}"
-    redirect_uri = f"http://{host}/oauth-callback"
+    # Check if running in dev mode (frontend on 3000)
+    redirect_uri = "http://localhost:3000/oauth-callback"
 
     params = {
         "client_id": client_id,

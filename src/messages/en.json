@@ -154,8 +154,8 @@
     "validation": {
       "title": "Account Action Required",
       "message": "Your account requires verification to correct an issue with Google services.",
-      "note": "Please verify your account to restore functionality.",
-      "button": "Verify Account",
+      "note": "Please verify your account to restore functionality. Copy the verification link below. Note: The link may expire, refresh the account to get a new one.",
+      "button": "I've Verified",
       "fallback": "Go to Google Account",
       "close": "Close"
     },

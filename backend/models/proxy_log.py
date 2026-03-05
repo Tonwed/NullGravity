@@ -22,7 +22,7 @@ class ProxyLog(Base):
     duration_ms: Mapped[float] = mapped_column(Float)
     input_tokens: Mapped[int] = mapped_column(Integer, default=0)
     output_tokens: Mapped[int] = mapped_column(Integer, default=0)
-    error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    error: Mapped[str | None] = mapped_column(String(5000), nullable=True)  # Increased from 500 to 5000 for full error messages
     client_ip: Mapped[str | None] = mapped_column(String(50), nullable=True)
     
     account_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("accounts.id", ondelete="SET NULL"), nullable=True)

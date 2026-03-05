@@ -61,6 +61,11 @@ async def init_db():
                 sqlalchemy.text("ALTER TABLE accounts ADD COLUMN avatar_cached BOOLEAN DEFAULT 0")
             )
 
+        if "sort_order" not in existing_columns:
+            await conn.execute(
+                sqlalchemy.text("ALTER TABLE accounts ADD COLUMN sort_order INTEGER DEFAULT 0 NOT NULL")
+            )
+
         # Auto-migrate: oauth_credentials 新列 (per-client data)
         result2 = await conn.execute(sqlalchemy.text("PRAGMA table_info(oauth_credentials)"))
         cred_columns = {row[1] for row in result2.fetchall()}

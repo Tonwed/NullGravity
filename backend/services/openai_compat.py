@@ -16,6 +16,7 @@ import json
 import logging
 import time
 import uuid
+import asyncio
 from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Request
@@ -28,6 +29,7 @@ from services.cloudcode_proxy import get_pool, _proxy_state
 from utils.proxy import get_chrome_client, create_chrome_client
 from services.proxy_logger import get_proxy_logger
 from utils.fingerprint import get_fingerprint
+from config.retry_config import MAX_CAPACITY_RETRIES, get_retry_delay
 
 logger = logging.getLogger("openai_compat")
 
@@ -344,9 +346,23 @@ async def chat_completions(request: Request):
 
         try:
             if stream:
-                # Streaming: client lifecycle managed by the generator (closes in finally)
-                client = create_chrome_client(timeout=180.0, account_id=account["id"])
-                res = await _handle_stream(client, url, headers, payload, model, account, pool, original_model)
+                # Streaming with retry support
+                for retry_attempt in range(MAX_CAPACITY_RETRIES):
+                    client = create_chrome_client(timeout=180.0, account_id=account["id"])
+                    res = await _handle_stream(client, url, headers, payload, model, account, pool, original_model, retry_attempt)
+                    
+                    # Check if we got a capacity exhaustion error that should be retried
+                    res_status = getattr(res, "status_code", 200)
+                    if res_status == 503 and retry_attempt < MAX_CAPACITY_RETRIES - 1:
+                        # Check if it's a capacity exhaustion error
+                        if isinstance(res, JSONResponse):
+                            retry_delay = get_retry_delay(retry_attempt)
+                            logger.warning(f"Stream capacity exhausted, retrying in {retry_delay}s (attempt {retry_attempt + 1}/{MAX_CAPACITY_RETRIES})")
+                            await asyncio.sleep(retry_delay)
+                            continue
+                    
+                    # Success or non-retryable error
+                    break
             else:
                 async with get_chrome_client(timeout=180.0, account_id=account["id"]) as client:
                     res = await _handle_non_stream(client, url, headers, payload, model, account, pool, original_model)
@@ -464,89 +480,157 @@ def _convert_messages_to_gemini(messages: list[dict]) -> tuple[list[dict], str |
 
 
 async def _handle_non_stream(client, url, headers, body, model, account, pool, original_model=""):
-    """Handle non-streaming request."""
+    """Handle non-streaming request with intelligent retry."""
     _proxy_state["total_requests"] += 1
     t0 = time.time()
     plog = get_proxy_logger()
-    resp = await client.post(url, headers=headers, json=body)
-    duration = (time.time() - t0) * 1000
+    
+    # Retry configuration
+    MAX_CAPACITY_RETRIES = 3
+    CAPACITY_RETRY_DELAY = 1.0  # seconds
+    
+    for retry_attempt in range(MAX_CAPACITY_RETRIES):
+        resp = await client.post(url, headers=headers, json=body)
+        duration = (time.time() - t0) * 1000
 
-    # Handle 404 — model not available on this account, rotate to next
-    if resp.status_code == 404:
-        upstream_error = resp.content.decode("utf-8", errors="replace") if hasattr(resp, "content") else resp.text
-        logger.error(f"Upstream 404 body: {upstream_error}")
-        await pool.rotate(account["id"], reason="model_not_found")
-        plog.log("POST", "/v1/chat/completions", "openai", model, False, 404, duration,
-                 account["email"], account["id"], error=f"Upstream 404: {upstream_error[:200]}", original_model=original_model)
-        return JSONResponse(
-            status_code=404,
-            content={"error": {"message": f"Model {model} not found, rotating account", "type": "not_found_error"}},
-        )
+        # Handle 404 — model not available on this account, rotate to next
+        if resp.status_code == 404:
+            upstream_error = resp.content.decode("utf-8", errors="replace") if hasattr(resp, "content") else resp.text
+            logger.error(f"Upstream 404 body: {upstream_error}")
+            await pool.rotate(account["id"], reason="model_not_found")
+            plog.log("POST", "/v1/chat/completions", "openai", model, False, 404, duration,
+                     account["email"], account["id"], error=f"Upstream 404: {upstream_error}", original_model=original_model)
+            return JSONResponse(
+                status_code=404,
+                content={"error": {"message": f"Model {model} not found, rotating account", "type": "not_found_error"}},
+            )
 
-    # Handle quota errors with rotation
-    if resp.status_code == 429:
-        await pool.rotate(account["id"], reason="rate_limited")
-        plog.log("POST", "/v1/chat/completions", "openai", model, False, 429, duration,
-                 account["email"], account["id"], error="Rate limited", original_model=original_model)
-        return JSONResponse(
-            status_code=429,
-            content={"error": {"message": "Rate limited, rotating account", "type": "rate_limit_error"}},
-        )
-    if resp.status_code == 403:
-        text = resp.text
-        if "RESOURCE_EXHAUSTED" in text or "quota" in text.lower():
-            await pool.rotate(account["id"], reason="exhausted")
-            plog.log("POST", "/v1/chat/completions", "openai", model, False, 403, duration,
-                     account["email"], account["id"], error="Quota exhausted", original_model=original_model)
+        # Handle quota errors with rotation
+        if resp.status_code == 429:
+            await pool.rotate(account["id"], reason="rate_limited")
+            plog.log("POST", "/v1/chat/completions", "openai", model, False, 429, duration,
+                     account["email"], account["id"], error=resp.text, original_model=original_model)
             return JSONResponse(
                 status_code=429,
-                content={"error": {"message": "Quota exhausted, rotating account", "type": "rate_limit_error"}},
+                content={"error": {"message": "Rate limited, rotating account", "type": "rate_limit_error"}},
             )
+        if resp.status_code == 403:
+            text = resp.text
+            if "RESOURCE_EXHAUSTED" in text or "quota" in text.lower():
+                await pool.rotate(account["id"], reason="exhausted")
+                plog.log("POST", "/v1/chat/completions", "openai", model, False, 403, duration,
+                         account["email"], account["id"], error=text, original_model=original_model)
+                return JSONResponse(
+                    status_code=429,
+                    content={"error": {"message": "Quota exhausted, rotating account", "type": "rate_limit_error"}},
+                )
 
-    if resp.status_code == 503:
-        text = resp.text
-        if "CAPACITY_EXHAUSTED" in text.upper() or "capacity" in text.lower():
-            await pool.rotate(account["id"], reason="capacity_exhausted")
-            plog.log("POST", "/v1/chat/completions", "openai", model, False, 503, duration,
-                     account["email"], account["id"], error="Capacity exhausted", original_model=original_model)
+        # Handle 503 with intelligent retry for capacity exhaustion
+        if resp.status_code == 503:
+            text = resp.text
+            is_capacity_exhausted = "CAPACITY_EXHAUSTED" in text.upper() or "MODEL_CAPACITY_EXHAUSTED" in text.upper()
+            
+            if is_capacity_exhausted:
+                # Check if we should retry
+                if retry_attempt < MAX_CAPACITY_RETRIES - 1:
+                    logger.warning(f"Model capacity exhausted, retrying in {CAPACITY_RETRY_DELAY}s (attempt {retry_attempt + 1}/{MAX_CAPACITY_RETRIES})")
+                    await asyncio.sleep(CAPACITY_RETRY_DELAY)
+                    continue  # Retry with same account
+                else:
+                    # All retries exhausted, rotate account
+                    logger.error(f"Model capacity exhausted after {MAX_CAPACITY_RETRIES} retries, rotating account")
+                    await pool.rotate(account["id"], reason="capacity_exhausted")
+                    plog.log("POST", "/v1/chat/completions", "openai", model, False, 503, duration,
+                             account["email"], account["id"], error=text, original_model=original_model)
+                    return JSONResponse(
+                        status_code=503,
+                        content={"error": {"message": "Capacity exhausted, rotating account", "type": "server_error"}},
+                    )
+
+        if resp.status_code != 200:
+            plog.log("POST", "/v1/chat/completions", "openai", model, False, resp.status_code, duration,
+                     account["email"], account["id"], error=resp.text, original_model=original_model)
             return JSONResponse(
-                status_code=503,
-                content={"error": {"message": "Capacity exhausted, rotating account", "type": "server_error"}},
+                status_code=resp.status_code,
+                content={"error": {"message": resp.text, "type": "upstream_error"}},
             )
 
-    if resp.status_code != 200:
-        plog.log("POST", "/v1/chat/completions", "openai", model, False, resp.status_code, duration,
-                 account["email"], account["id"], error=resp.text[:200], original_model=original_model)
-        return JSONResponse(
-            status_code=resp.status_code,
-            content={"error": {"message": resp.text[:500], "type": "upstream_error"}},
-        )
+        # Success - parse Gemini response and convert to OpenAI format
+        try:
+            gemini_resp = resp.json()
+        except Exception:
+            error_detail = f"Invalid JSON response: {resp.text}"
+            plog.log("POST", "/v1/chat/completions", "openai", model, False, 502, duration,
+                     account["email"], account["id"], error=error_detail, original_model=original_model)
+            return JSONResponse(
+                status_code=502,
+                content={"error": {"message": "Invalid upstream response", "type": "server_error"}},
+            )
 
-    # Parse Gemini response and convert to OpenAI format
-    try:
-        gemini_resp = resp.json()
-    except Exception:
-        plog.log("POST", "/v1/chat/completions", "openai", model, False, 502, duration,
-                 account["email"], account["id"], error="Invalid upstream response", original_model=original_model)
-        return JSONResponse(
-            status_code=502,
-            content={"error": {"message": "Invalid upstream response", "type": "server_error"}},
-        )
+        # Unwrap daily-cloudcode "response" envelope
+        if "response" in gemini_resp:
+            gemini_resp = gemini_resp["response"]
 
-    # Unwrap daily-cloudcode "response" envelope
-    if "response" in gemini_resp:
-        gemini_resp = gemini_resp["response"]
+        # Extract text and functionCall parts from Gemini response
+        text = ""
+        tool_calls_raw = []
+        candidates = gemini_resp.get("candidates", [])
+        if candidates:
+            parts = candidates[0].get("content", {}).get("parts", [])
+            text, tool_calls_raw = _extract_gemini_parts(parts)
 
-    # Extract text and functionCall parts from Gemini response
-    text = ""
-    tool_calls_raw = []
-    candidates = gemini_resp.get("candidates", [])
-    if candidates:
-        parts = candidates[0].get("content", {}).get("parts", [])
-        text, tool_calls_raw = _extract_gemini_parts(parts)
+        # Build OpenAI response
+        completion_id = f"chatcmpl-{uuid.uuid4().hex[:24]}"
+        usage = gemini_resp.get("usageMetadata", {})
 
-    # Build OpenAI response
-    completion_id = f"chatcmpl-{uuid.uuid4().hex[:24]}"
+        plog.log("POST", "/v1/chat/completions", "openai", model, False, 200, duration,
+                 account["email"], account["id"],
+                 input_tokens=usage.get("promptTokenCount", 0),
+                 output_tokens=usage.get("candidatesTokenCount", 0),
+                 original_model=original_model)
+
+        # Build message with optional tool_calls
+        message: dict = {"role": "assistant", "content": text or None}
+        finish_reason = "stop"
+
+        if tool_calls_raw:
+            finish_reason = "tool_calls"
+            message["tool_calls"] = [
+                {
+                    "id": f"call_{uuid.uuid4().hex[:24]}",
+                    "type": "function",
+                    "function": {
+                        "name": tc["name"],
+                        "arguments": json.dumps(tc["args"]),
+                    },
+                }
+                for tc in tool_calls_raw
+            ]
+
+        return JSONResponse(content={
+            "id": completion_id,
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": message,
+                    "finish_reason": finish_reason,
+                }
+            ],
+            "usage": {
+                "prompt_tokens": usage.get("promptTokenCount", 0),
+                "completion_tokens": usage.get("candidatesTokenCount", 0),
+                "total_tokens": usage.get("totalTokenCount", 0),
+            },
+        })
+    
+    # Should never reach here, but just in case
+    return JSONResponse(
+        status_code=503,
+        content={"error": {"message": "Max retries exceeded", "type": "server_error"}},
+    )
     usage = gemini_resp.get("usageMetadata", {})
 
     plog.log("POST", "/v1/chat/completions", "openai", model, False, 200, duration,
@@ -593,7 +677,7 @@ async def _handle_non_stream(client, url, headers, body, model, account, pool, o
     })
 
 
-async def _handle_stream(client, url, headers, body, model, account, pool, original_model=""):
+async def _handle_stream(client, url, headers, body, model, account, pool, original_model="", retry_attempt=0):
     """Handle streaming request — true SSE streaming via curl_cffi.
 
     Uses stream=True + aiter_lines() for real-time token-by-token delivery.
@@ -625,27 +709,37 @@ async def _handle_stream(client, url, headers, body, model, account, pool, origi
             logger.error(f"Upstream 404 body: {error_text}")
             await pool.rotate(account["id"], reason="model_not_found")
             plog.log("POST", "/v1/chat/completions", "openai", model, True, 404, duration,
-                     account["email"], account["id"], error=f"Upstream 404: {error_text[:200]}", original_model=original_model)
+                     account["email"], account["id"], error=f"Upstream 404: {error_text}", original_model=original_model)
             return JSONResponse(status_code=404, content={"error": {"message": f"Model {model} not found", "type": "not_found_error"}})
         if resp.status_code == 429:
             await pool.rotate(account["id"], reason="rate_limited")
             plog.log("POST", "/v1/chat/completions", "openai", model, True, 429, duration,
-                     account["email"], account["id"], error="Rate limited", original_model=original_model)
+                     account["email"], account["id"], error=error_text, original_model=original_model)
             return JSONResponse(status_code=429, content={"error": {"message": "Rate limited", "type": "rate_limit_error"}})
         if resp.status_code == 403 and ("RESOURCE_EXHAUSTED" in error_text or "quota" in error_text.lower()):
             await pool.rotate(account["id"], reason="exhausted")
             plog.log("POST", "/v1/chat/completions", "openai", model, True, 403, duration,
-                     account["email"], account["id"], error="Quota exhausted", original_model=original_model)
+                     account["email"], account["id"], error=error_text, original_model=original_model)
             return JSONResponse(status_code=429, content={"error": {"message": "Quota exhausted", "type": "rate_limit_error"}})
-        if resp.status_code == 503 and ("CAPACITY_EXHAUSTED" in error_text.upper() or "capacity" in error_text.lower()):
-            await pool.rotate(account["id"], reason="capacity_exhausted")
-            plog.log("POST", "/v1/chat/completions", "openai", model, True, 503, duration,
-                     account["email"], account["id"], error="Capacity exhausted", original_model=original_model)
-            return JSONResponse(status_code=503, content={"error": {"message": "Capacity exhausted", "type": "server_error"}})
+        
+        # Handle 503 with retry support for capacity exhaustion
+        if resp.status_code == 503 and ("CAPACITY_EXHAUSTED" in error_text.upper() or "MODEL_CAPACITY_EXHAUSTED" in error_text.upper()):
+            # Don't rotate account yet - let outer loop retry
+            if retry_attempt < MAX_CAPACITY_RETRIES - 1:
+                # Return 503 to signal retry needed
+                plog.log("POST", "/v1/chat/completions", "openai", model, True, 503, duration,
+                         account["email"], account["id"], error=f"Capacity exhausted (retry {retry_attempt + 1})", original_model=original_model)
+                return JSONResponse(status_code=503, content={"error": {"message": "Capacity exhausted", "type": "server_error"}})
+            else:
+                # Final retry failed, rotate account
+                await pool.rotate(account["id"], reason="capacity_exhausted")
+                plog.log("POST", "/v1/chat/completions", "openai", model, True, 503, duration,
+                         account["email"], account["id"], error=error_text, original_model=original_model)
+                return JSONResponse(status_code=503, content={"error": {"message": "Capacity exhausted", "type": "server_error"}})
 
         plog.log("POST", "/v1/chat/completions", "openai", model, True, resp.status_code, duration,
-                 account["email"], account["id"], error=error_text[:200], original_model=original_model)
-        return JSONResponse(status_code=resp.status_code, content={"error": {"message": error_text[:500], "type": "upstream_error"}})
+                 account["email"], account["id"], error=error_text, original_model=original_model)
+        return JSONResponse(status_code=resp.status_code, content={"error": {"message": error_text, "type": "upstream_error"}})
 
     # Stream SSE in real-time
     async def stream_openai():
@@ -882,9 +976,24 @@ async def anthropic_messages(request: Request):
 
         try:
             if stream:
-                # Streaming: client lifecycle managed by the generator (closes in finally)
-                client = create_chrome_client(timeout=180.0, account_id=account["id"])
-                res = await _handle_anthropic_stream(client, url, headers, payload, model, account, pool, original_model)
+                # Streaming with retry support
+                for retry_attempt in range(MAX_CAPACITY_RETRIES):
+                    client = create_chrome_client(timeout=180.0, account_id=account["id"])
+                    res = await _handle_anthropic_stream(client, url, headers, payload, model, account, pool, original_model, retry_attempt)
+                    
+                    # Check if we got a capacity exhaustion error that should be retried
+                    res_status = getattr(res, "status_code", 200)
+                    if res_status == 503 and retry_attempt < MAX_CAPACITY_RETRIES - 1:
+                        # Check if it's a capacity exhaustion error by looking at the response
+                        if isinstance(res, JSONResponse):
+                            # This is an error response, check if it's capacity related
+                            retry_delay = get_retry_delay(retry_attempt)
+                            logger.warning(f"Stream capacity exhausted, retrying in {retry_delay}s (attempt {retry_attempt + 1}/{MAX_CAPACITY_RETRIES})")
+                            await asyncio.sleep(retry_delay)
+                            continue
+                    
+                    # Success or non-retryable error
+                    break
             else:
                 async with get_chrome_client(timeout=180.0, account_id=account["id"]) as client:
                     res = await _handle_anthropic_non_stream(client, url, headers, payload, model, account, pool, original_model)
@@ -986,123 +1095,147 @@ def _convert_anthropic_messages_to_gemini(messages: list[dict]) -> list[dict]:
 
 
 async def _handle_anthropic_non_stream(client, url, headers, body, model, account, pool, original_model=""):
-    """Handle Anthropic non-streaming request."""
+    """Handle Anthropic non-streaming request with intelligent retry."""
     _proxy_state["total_requests"] += 1
     t0 = time.time()
     plog = get_proxy_logger()
-    resp = await client.post(url, headers=headers, json=body)
-    duration = (time.time() - t0) * 1000
+    
+    for retry_attempt in range(MAX_CAPACITY_RETRIES):
+        resp = await client.post(url, headers=headers, json=body)
+        duration = (time.time() - t0) * 1000
 
-    if resp.status_code == 404:
-        upstream_error = resp.content.decode("utf-8", errors="replace") if hasattr(resp, "content") else resp.text
-        logger.error(f"Upstream 404 body: {upstream_error}")
-        await pool.rotate(account["id"], reason="model_not_found")
-        plog.log("POST", "/v1/messages", "anthropic", model, False, 404, duration,
-                 account["email"], account["id"], error=f"Upstream 404: {upstream_error[:200]}", original_model=original_model)
-        return JSONResponse(
-            status_code=404,
-            content={"type": "error", "error": {"type": "not_found_error", "message": f"Model {model} not found, rotating account"}},
-        )
+        # Handle 404 — model not available on this account, rotate to next
+        if resp.status_code == 404:
+            upstream_error = resp.content.decode("utf-8", errors="replace") if hasattr(resp, "content") else resp.text
+            logger.error(f"Upstream 404 body: {upstream_error}")
+            await pool.rotate(account["id"], reason="model_not_found")
+            plog.log("POST", "/v1/messages", "anthropic", model, False, 404, duration,
+                     account["email"], account["id"], error=f"Upstream 404: {upstream_error}", original_model=original_model)
+            return JSONResponse(
+                status_code=404,
+                content={"type": "error", "error": {"type": "not_found_error", "message": f"Model {model} not found, rotating account"}},
+            )
 
-    if resp.status_code == 429:
-        await pool.rotate(account["id"], reason="rate_limited")
-        plog.log("POST", "/v1/messages", "anthropic", model, False, 429, duration,
-                 account["email"], account["id"], error="Rate limited", original_model=original_model)
-        return JSONResponse(
-            status_code=429,
-            content={"type": "error", "error": {"type": "rate_limit_error", "message": "Rate limited, rotating account"}},
-        )
-    if resp.status_code == 403:
-        text = resp.text
-        if "RESOURCE_EXHAUSTED" in text or "quota" in text.lower():
-            await pool.rotate(account["id"], reason="exhausted")
-            plog.log("POST", "/v1/messages", "anthropic", model, False, 403, duration,
-                     account["email"], account["id"], error="Quota exhausted", original_model=original_model)
+        if resp.status_code == 429:
+            await pool.rotate(account["id"], reason="rate_limited")
+            plog.log("POST", "/v1/messages", "anthropic", model, False, 429, duration,
+                     account["email"], account["id"], error=resp.text, original_model=original_model)
             return JSONResponse(
                 status_code=429,
-                content={"type": "error", "error": {"type": "rate_limit_error", "message": "Quota exhausted, rotating account"}},
+                content={"type": "error", "error": {"type": "rate_limit_error", "message": "Rate limited, rotating account"}},
             )
-    if resp.status_code == 503:
-        text = resp.text
-        if "CAPACITY_EXHAUSTED" in text.upper() or "capacity" in text.lower():
-            await pool.rotate(account["id"], reason="capacity_exhausted")
-            plog.log("POST", "/v1/messages", "anthropic", model, False, 503, duration,
-                     account["email"], account["id"], error="Capacity exhausted", original_model=original_model)
+        if resp.status_code == 403:
+            text = resp.text
+            if "RESOURCE_EXHAUSTED" in text or "quota" in text.lower():
+                await pool.rotate(account["id"], reason="exhausted")
+                plog.log("POST", "/v1/messages", "anthropic", model, False, 403, duration,
+                         account["email"], account["id"], error=text, original_model=original_model)
+                return JSONResponse(
+                    status_code=429,
+                    content={"type": "error", "error": {"type": "rate_limit_error", "message": "Quota exhausted, rotating account"}},
+                )
+        
+        # Handle 503 with intelligent retry for capacity exhaustion
+        if resp.status_code == 503:
+            text = resp.text
+            is_capacity_exhausted = "CAPACITY_EXHAUSTED" in text.upper() or "MODEL_CAPACITY_EXHAUSTED" in text.upper()
+            
+            if is_capacity_exhausted:
+                # Check if we should retry
+                if retry_attempt < MAX_CAPACITY_RETRIES - 1:
+                    retry_delay = get_retry_delay(retry_attempt)
+                    logger.warning(f"Model capacity exhausted, retrying in {retry_delay}s (attempt {retry_attempt + 1}/{MAX_CAPACITY_RETRIES})")
+                    await asyncio.sleep(retry_delay)
+                    continue  # Retry with same account
+                else:
+                    # All retries exhausted, rotate account
+                    logger.error(f"Model capacity exhausted after {MAX_CAPACITY_RETRIES} retries, rotating account")
+                    await pool.rotate(account["id"], reason="capacity_exhausted")
+                    plog.log("POST", "/v1/messages", "anthropic", model, False, 503, duration,
+                             account["email"], account["id"], error=text, original_model=original_model)
+                    return JSONResponse(
+                        status_code=503,
+                        content={"type": "error", "error": {"type": "api_error", "message": "Capacity exhausted, rotating account"}},
+                    )
+
+        if resp.status_code != 200:
+            plog.log("POST", "/v1/messages", "anthropic", model, False, resp.status_code, duration,
+                     account["email"], account["id"], error=resp.text, original_model=original_model)
             return JSONResponse(
-                status_code=503,
-                content={"type": "error", "error": {"type": "api_error", "message": "Capacity exhausted, rotating account"}},
+                status_code=resp.status_code,
+                content={"type": "error", "error": {"type": "api_error", "message": resp.text}},
             )
 
-    if resp.status_code != 200:
-        plog.log("POST", "/v1/messages", "anthropic", model, False, resp.status_code, duration,
-                 account["email"], account["id"], error=resp.text[:200], original_model=original_model)
-        return JSONResponse(
-            status_code=resp.status_code,
-            content={"type": "error", "error": {"type": "api_error", "message": resp.text[:500]}},
-        )
+        # Success - parse and return response
+        try:
+            gemini_resp = resp.json()
+        except Exception:
+            error_detail = f"Invalid JSON response: {resp.text}"
+            plog.log("POST", "/v1/messages", "anthropic", model, False, 502, duration,
+                     account["email"], account["id"], error=error_detail, original_model=original_model)
+            return JSONResponse(
+                status_code=502,
+                content={"type": "error", "error": {"type": "api_error", "message": "Invalid upstream response"}},
+            )
 
-    try:
-        gemini_resp = resp.json()
-    except Exception:
-        plog.log("POST", "/v1/messages", "anthropic", model, False, 502, duration,
-                 account["email"], account["id"], error="Invalid upstream response", original_model=original_model)
-        return JSONResponse(
-            status_code=502,
-            content={"type": "error", "error": {"type": "api_error", "message": "Invalid upstream response"}},
-        )
+        # Unwrap daily-cloudcode "response" envelope
+        if "response" in gemini_resp:
+            gemini_resp = gemini_resp["response"]
 
-    # Unwrap daily-cloudcode "response" envelope
-    if "response" in gemini_resp:
-        gemini_resp = gemini_resp["response"]
+        text = ""
+        tool_calls_raw = []
+        candidates = gemini_resp.get("candidates", [])
+        if candidates:
+            parts = candidates[0].get("content", {}).get("parts", [])
+            text, tool_calls_raw = _extract_gemini_parts(parts)
 
-    text = ""
-    tool_calls_raw = []
-    candidates = gemini_resp.get("candidates", [])
-    if candidates:
-        parts = candidates[0].get("content", {}).get("parts", [])
-        text, tool_calls_raw = _extract_gemini_parts(parts)
+        usage = gemini_resp.get("usageMetadata", {})
+        msg_id = f"msg_{uuid.uuid4().hex[:24]}"
 
-    usage = gemini_resp.get("usageMetadata", {})
-    msg_id = f"msg_{uuid.uuid4().hex[:24]}"
+        plog.log("POST", "/v1/messages", "anthropic", model, False, 200, duration,
+                 account["email"], account["id"],
+                 input_tokens=usage.get("promptTokenCount", 0),
+                 output_tokens=usage.get("candidatesTokenCount", 0),
+                 original_model=original_model)
 
-    plog.log("POST", "/v1/messages", "anthropic", model, False, 200, duration,
-             account["email"], account["id"],
-             input_tokens=usage.get("promptTokenCount", 0),
-             output_tokens=usage.get("candidatesTokenCount", 0),
-             original_model=original_model)
+        # Build Anthropic content blocks
+        content_blocks = []
+        if text:
+            content_blocks.append({"type": "text", "text": text})
+        for tc in tool_calls_raw:
+            content_blocks.append({
+                "type": "tool_use",
+                "id": f"toolu_{uuid.uuid4().hex[:24]}",
+                "name": tc["name"],
+                "input": tc["args"],
+            })
+        if not content_blocks:
+            content_blocks.append({"type": "text", "text": ""})
 
-    # Build Anthropic content blocks
-    content_blocks = []
-    if text:
-        content_blocks.append({"type": "text", "text": text})
-    for tc in tool_calls_raw:
-        content_blocks.append({
-            "type": "tool_use",
-            "id": f"toolu_{uuid.uuid4().hex[:24]}",
-            "name": tc["name"],
-            "input": tc["args"],
+        stop_reason = "tool_use" if tool_calls_raw else "end_turn"
+
+        return JSONResponse(content={
+            "id": msg_id,
+            "type": "message",
+            "role": "assistant",
+            "content": content_blocks,
+            "model": model,
+            "stop_reason": stop_reason,
+            "stop_sequence": None,
+            "usage": {
+                "input_tokens": usage.get("promptTokenCount", 0),
+                "output_tokens": usage.get("candidatesTokenCount", 0),
+            },
         })
-    if not content_blocks:
-        content_blocks.append({"type": "text", "text": ""})
-
-    stop_reason = "tool_use" if tool_calls_raw else "end_turn"
-
-    return JSONResponse(content={
-        "id": msg_id,
-        "type": "message",
-        "role": "assistant",
-        "content": content_blocks,
-        "model": model,
-        "stop_reason": stop_reason,
-        "stop_sequence": None,
-        "usage": {
-            "input_tokens": usage.get("promptTokenCount", 0),
-            "output_tokens": usage.get("candidatesTokenCount", 0),
-        },
-    })
+    
+    # Should never reach here, but just in case
+    return JSONResponse(
+        status_code=503,
+        content={"type": "error", "error": {"type": "api_error", "message": "Max retries exceeded"}},
+    )
 
 
-async def _handle_anthropic_stream(client, url, headers, body, model, account, pool, original_model=""):
+async def _handle_anthropic_stream(client, url, headers, body, model, account, pool, original_model="", retry_attempt=0):
     """Handle Anthropic streaming request — true SSE streaming via curl_cffi."""
     _proxy_state["total_requests"] += 1
     t0 = time.time()
@@ -1129,27 +1262,37 @@ async def _handle_anthropic_stream(client, url, headers, body, model, account, p
             logger.error(f"Upstream 404 body: {error_text}")
             await pool.rotate(account["id"], reason="model_not_found")
             plog.log("POST", "/v1/messages", "anthropic", model, True, 404, duration,
-                     account["email"], account["id"], error=f"Upstream 404: {error_text[:200]}", original_model=original_model)
+                     account["email"], account["id"], error=f"Upstream 404: {error_text}", original_model=original_model)
             return JSONResponse(status_code=404, content={"type": "error", "error": {"type": "not_found_error", "message": f"Model {model} not found"}})
         if resp.status_code == 429:
             await pool.rotate(account["id"], reason="rate_limited")
             plog.log("POST", "/v1/messages", "anthropic", model, True, 429, duration,
-                     account["email"], account["id"], error="Rate limited", original_model=original_model)
+                     account["email"], account["id"], error=error_text, original_model=original_model)
             return JSONResponse(status_code=429, content={"type": "error", "error": {"type": "rate_limit_error", "message": "Rate limited"}})
         if resp.status_code == 403 and ("RESOURCE_EXHAUSTED" in error_text or "quota" in error_text.lower()):
             await pool.rotate(account["id"], reason="exhausted")
             plog.log("POST", "/v1/messages", "anthropic", model, True, 403, duration,
-                     account["email"], account["id"], error="Quota exhausted", original_model=original_model)
+                     account["email"], account["id"], error=error_text, original_model=original_model)
             return JSONResponse(status_code=429, content={"type": "error", "error": {"type": "rate_limit_error", "message": "Quota exhausted"}})
-        if resp.status_code == 503 and ("CAPACITY_EXHAUSTED" in error_text.upper() or "capacity" in error_text.lower()):
-            await pool.rotate(account["id"], reason="capacity_exhausted")
-            plog.log("POST", "/v1/messages", "anthropic", model, True, 503, duration,
-                     account["email"], account["id"], error="Capacity exhausted", original_model=original_model)
-            return JSONResponse(status_code=503, content={"type": "error", "error": {"type": "api_error", "message": "Capacity exhausted"}})
+        
+        # Handle 503 with retry support for capacity exhaustion
+        if resp.status_code == 503 and ("CAPACITY_EXHAUSTED" in error_text.upper() or "MODEL_CAPACITY_EXHAUSTED" in error_text.upper()):
+            # Don't rotate account yet - let outer loop retry
+            if retry_attempt < MAX_CAPACITY_RETRIES - 1:
+                # Return 503 to signal retry needed
+                plog.log("POST", "/v1/messages", "anthropic", model, True, 503, duration,
+                         account["email"], account["id"], error=f"Capacity exhausted (retry {retry_attempt + 1})", original_model=original_model)
+                return JSONResponse(status_code=503, content={"type": "error", "error": {"type": "api_error", "message": "Capacity exhausted"}})
+            else:
+                # Final retry failed, rotate account
+                await pool.rotate(account["id"], reason="capacity_exhausted")
+                plog.log("POST", "/v1/messages", "anthropic", model, True, 503, duration,
+                         account["email"], account["id"], error=error_text, original_model=original_model)
+                return JSONResponse(status_code=503, content={"type": "error", "error": {"type": "api_error", "message": "Capacity exhausted"}})
 
         plog.log("POST", "/v1/messages", "anthropic", model, True, resp.status_code, duration,
-                 account["email"], account["id"], error=error_text[:200], original_model=original_model)
-        return JSONResponse(status_code=resp.status_code, content={"type": "error", "error": {"type": "api_error", "message": error_text[:500]}})
+                 account["email"], account["id"], error=error_text, original_model=original_model)
+        return JSONResponse(status_code=resp.status_code, content={"type": "error", "error": {"type": "api_error", "message": error_text}})
 
     # Stream SSE in real-time
     async def stream_anthropic():

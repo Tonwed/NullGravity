@@ -53,6 +53,9 @@ class Account(Base):
     # Device fingerprint for account isolation
     device_profile: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
+    # Display order for drag-and-drop sorting
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)

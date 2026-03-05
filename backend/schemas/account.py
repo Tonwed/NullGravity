@@ -38,6 +38,7 @@ class AccountResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     last_sync_at: datetime | None = None
+    sort_order: int = 0
 
     # Detailed status & quota
     tier: str | None = None
